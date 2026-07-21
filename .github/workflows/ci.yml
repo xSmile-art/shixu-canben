@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'reader/**'
+  pull_request:
+    paths:
+      - 'reader/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: reader/package-lock.json
+      - working-directory: reader
+        run: npm ci
+      - working-directory: reader
+        run: npm test
