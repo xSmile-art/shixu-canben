@@ -7,7 +7,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    include: ['test/**/*.test.js'],
+    include: ['test/**/*.test.{js,jsx}'],
     coverage: { reporter: [] }
   }
 })
