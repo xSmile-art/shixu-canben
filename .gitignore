@@ -16,12 +16,13 @@ ehthumbs.db
 *.sublime-project
 /.vs/
 
-# ===== AI / 工具缓存目录（本地配置，不纳入小说仓库） =====
-.claude/
-.codex/
+# ===== AI / 工具缓存目录 =====
+# 注：.claude/ 和 .codex/ 下的 skill 规则要上传（创作规范）
+# 只屏蔽本地配置和缓存类目录
 .codegraph/
 .cache/
 tmp/
+**/.cache/
 
 # ===== 临时与备份文件 =====
 *.tmp
@@ -42,6 +43,10 @@ out/
 .env
 .env.*
 !.env.example
+
+# ===== 本地配置文件（含个人路径/凭据/权限，不上传） =====
+*.local.json
+**/*.local.json
 
 # ===== 其他 =====
 *.sqlite
