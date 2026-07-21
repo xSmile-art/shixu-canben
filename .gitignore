@@ -1,0 +1,48 @@
+# ===== 操作系统 =====
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+*.lnk
+
+# ===== 编辑器 / IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*~
+*.sublime-workspace
+*.sublime-project
+/.vs/
+
+# ===== AI / 工具缓存目录（本地配置，不纳入小说仓库） =====
+.claude/
+.codex/
+.codegraph/
+.cache/
+tmp/
+
+# ===== 临时与备份文件 =====
+*.tmp
+*.bak
+*.log
+~$*
+*.draft
+*.orig
+
+# ===== 依赖与构建（预留，当前为纯文本项目） =====
+node_modules/
+dist/
+build/
+out/
+*.lock
+
+# ===== 敏感信息（若后续接入发布工具等） =====
+.env
+.env.*
+!.env.example
+
+# ===== 其他 =====
+*.sqlite
+*.db
