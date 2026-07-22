@@ -23,7 +23,7 @@
       "@hooks/*": ["./src/hooks/*"],
       "@components/*": ["./src/components/*"]
     },
-    "types": ["@testing-library/jest-dom"]
+    "types": ["@testing-library/jest-dom/vitest"]
   },
   "include": ["src", "test"],
   "references": [{ "path": "./tsconfig.node.json" }]
