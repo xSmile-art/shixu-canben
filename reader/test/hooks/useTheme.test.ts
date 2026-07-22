@@ -5,7 +5,10 @@ import { PRESET_THEMES } from '@themes/presets'
 import { THEME_KEY } from '@themes/index'
 
 describe('useTheme', () => {
-  beforeEach(() => localStorage.clear())
+  beforeEach(() => {
+    localStorage.clear()
+    document.documentElement.removeAttribute('style')
+  })
 
   it('无记录时默认第一套预设', () => {
     const { result } = renderHook(() => useTheme())
@@ -14,7 +17,7 @@ describe('useTheme', () => {
 
   it('setTheme 切换主题并持久化', () => {
     const { result } = renderHook(() => useTheme())
-    act(() => result.current.setTheme(PRESET_THEMES[6]))
+    act(() => result.current.setTheme(PRESET_THEMES.find(t => t.name === 'night')!))
     expect(result.current.theme.name).toBe('night')
     expect(JSON.parse(localStorage.getItem(THEME_KEY)!).name).toBe('night')
   })
@@ -29,7 +32,7 @@ describe('useTheme', () => {
   })
 
   it('刷新后恢复持久化主题', () => {
-    localStorage.setItem(THEME_KEY, JSON.stringify(PRESET_THEMES[2]))
+    localStorage.setItem(THEME_KEY, JSON.stringify(PRESET_THEMES.find(t => t.name === 'green')!))
     const { result } = renderHook(() => useTheme())
     expect(result.current.theme.name).toBe('green')
   })

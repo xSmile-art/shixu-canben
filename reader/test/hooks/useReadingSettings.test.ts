@@ -49,4 +49,12 @@ describe('useReadingSettings', () => {
     const { result } = renderHook(() => useReadingSettings())
     expect(result.current.settings.brightness).toBe(0.6)
   })
+
+  it('localStorage 里的非法值被 sanitize 回退默认', () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ fontSize: 'hello', brightness: 99, pageMode: 'weird' }))
+    const { result } = renderHook(() => useReadingSettings())
+    expect(result.current.settings.fontSize).toBe(DEFAULT_SETTINGS.fontSize)
+    expect(result.current.settings.brightness).toBe(DEFAULT_SETTINGS.brightness)
+    expect(result.current.settings.pageMode).toBe(DEFAULT_SETTINGS.pageMode)
+  })
 })
