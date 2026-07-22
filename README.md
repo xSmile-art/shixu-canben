@@ -30,3 +30,15 @@ webnovel/
 - 《时序残本》卷一《坠桥稿本》已完成至第 20 章正文
 - 台账版本 v2.2，伏笔登记 110 条
 - 主线：事故重建师沈砚觉醒时间回溯残本，从被官方低估的潜流一步步揭穿潜藏异能暗世界，最终在与「蚀刻会·执笔人」的时间博弈中，选择"承担当下"而非"无限改写"。
+
+## 在线阅读
+
+部署在 GitHub Pages：https://xsmile-art.github.io/shixu-canben/
+
+### 加新章节
+
+1. 写 `novels/时序残本/正文/第NNN章-标题.md`
+2. 在 `chapters-index.json` 追加 `{"num":"NNN","title":"标题"}`
+3. `git push origin main`
+
+网页在 raw CDN 刷新后（最多 5 分钟）即可读到新章，无需重新构建站点。React 阅读器代码在 `reader/`，改代码才会触发部署。
