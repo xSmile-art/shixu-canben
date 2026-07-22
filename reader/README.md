@@ -1,29 +1,34 @@
 # 时序残本 · 在线阅读器
 
-基于 Vite + React 的静态阅读器，部署在 GitHub Pages。
+React 19 + TypeScript + Tailwind CSS v4 + Vite 构建的小说阅读器。
 
-## 本地开发
+## 功能
+
+- 章节目录 / 阅读 / 上一章·下一章 / 进度记忆 / URL 章节参数（`?ch=N`）
+- 8 套预设主题 + 6 色自定义（"我的主题"），localStorage 持久化
+- 阅读设置：字体（衬线/无衬线/楷体）、字号、行距、字间距、段间距、首行缩进、页宽、亮度
+- 三种翻页模式：滚动 / 左右翻页 / 上下翻页（JS 分页）
+- 双端布局：PC 右侧悬浮工具条；移动端底部弹层 + 抽屉目录
+
+## 开发
 
 ```bash
-cd reader
 npm install
-npm run dev
+npm run dev      # 本地开发
+npm test         # 单元测试（Vitest）
+npm run build    # 类型检查 + 构建到 dist/
 ```
 
-## 测试
+## 数据
 
-```bash
-npm test
-```
+章节来自 GitHub Raw（见 `src/lib/raw.ts`）。localStorage 键前缀 `sxcb-`。
+路径别名见 `tsconfig.json` 的 `paths`（Vite/Vitest 经 vite-tsconfig-paths 共享）。
 
-## 构建
+## 结构
 
-```bash
-npm run build
-```
-
-## 架构要点
-
-站点本体与内容数据解耦：章节正文和索引以原始 markdown/json 形式躺在仓库 `main` 分支，浏览器运行时通过 `raw.githubusercontent.com` 拉取。加新章只需 push 正文与索引，不重新构建站点。
-
-详见 `docs/superpowers/specs/2026-07-21-reader-design.md`。
+- `src/types/` — 类型定义
+- `src/themes/` — 8 套预设主题 + applyTheme
+- `src/hooks/` — useChapters/useChapter/useReadingProgress/useTheme/useReadingSettings
+- `src/lib/` — raw/markdown/storage/paginate 工具
+- `src/components/` — layout / reader / settings / ui 组件
+- `test/` — 镜像 src 的单元测试
