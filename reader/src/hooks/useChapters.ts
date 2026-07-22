@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback } from 'react'
-import { buildIndexUrl } from '../lib/raw.js'
+import { buildIndexUrl } from '@lib/raw'
+import type { ChapterIndex, LoadStatus } from '@app-types/chapter'
 
 // 拉取章节索引。status: 'loading' | 'success' | 'error'
 export function useChapters() {
-  const [chapters, setChapters] = useState([])
-  const [status, setStatus] = useState('loading')
-  const [error, setError] = useState(null)
+  const [chapters, setChapters] = useState<ChapterIndex>([])
+  const [status, setStatus] = useState<LoadStatus>('loading')
+  const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setStatus('loading')
@@ -17,7 +18,7 @@ export function useChapters() {
       setChapters(Array.isArray(data) ? data : [])
       setStatus('success')
     } catch (e) {
-      setError(e.message || '未知错误')
+      setError(e instanceof Error ? e.message : '未知错误')
       setStatus('error')
     }
   }, [])
