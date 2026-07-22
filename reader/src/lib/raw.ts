@@ -13,8 +13,8 @@ export function buildFileName({ num, title }: Chapter): string {
 }
 
 export function buildChapterUrl(chapter: Chapter): string {
-  const path = `${NOVELS_PREFIX}/${buildFileName(chapter)}`
-  return `${RAW_BASE}/${encodeURI(path)}`
+  const segs = [...NOVELS_PREFIX.split('/'), buildFileName(chapter)]
+  return `${RAW_BASE}/${segs.map(encodeURIComponent).join('/')}`
 }
 
 export function buildIndexUrl(): string {

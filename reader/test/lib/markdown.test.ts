@@ -13,4 +13,9 @@ describe('markdown', () => {
     const html = await renderMarkdown('| a | b |\n|---|---|\n| 1 | 2 |')
     expect(html).toContain('<table>')
   })
+
+  it('单换行不插入 <br>（breaks:false）', async () => {
+    const html = await renderMarkdown('第一行\n第二行')
+    expect(html).not.toContain('<br>')
+  })
 })

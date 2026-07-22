@@ -1,12 +1,12 @@
-import { marked } from 'marked'
+import { Marked } from 'marked'
 
-marked.setOptions({
+const m = new Marked({
   gfm: true,
   breaks: false
 })
 
-// markdown → HTML。marked 默认转义内联 HTML，正文为自有内容无注入风险。
+// markdown → HTML。项目假设正文为受信内容，未启用 sanitize。
 // marked v18 的 parse 返回 string | Promise<string>，统一成 Promise 便于调用方。
 export async function renderMarkdown(md: string): Promise<string> {
-  return marked.parse(md)
+  return m.parse(md)
 }
