@@ -104,6 +104,11 @@ export default function App() {
     }
   }, [chStatus, currentNum, progress])
 
+  // 翻页模式：页码存 progress.scrollTop 字段（数据兼容）
+  const handlePageChange = useCallback((page: number, _total: number) => {
+    progress.save(currentNum, page)
+  }, [progress, currentNum])
+
   const backToTop = useCallback(() => window.scrollTo({ top: 0, behavior: 'smooth' }), [])
   const closeSidebar = useCallback(() => setSidebarOpen(false), [])
   const openSidebar = useCallback(() => setSidebarOpen(true), [])
@@ -160,6 +165,8 @@ export default function App() {
               html={html}
               settings={settings}
               onRetry={retryList}
+              page={settings.pageMode === 'scroll' ? 0 : progress.scrollTop}
+              onPageChange={handlePageChange}
             />
           ) : (
             <div className="py-16 text-center text-muted">加载中…</div>

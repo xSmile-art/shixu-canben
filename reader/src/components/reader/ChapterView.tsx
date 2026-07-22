@@ -2,6 +2,7 @@ import type { Chapter, LoadStatus } from '@app-types/chapter'
 import type { ReadingSettings } from '@app-types/settings'
 import { DEFAULT_SETTINGS } from '@app-types/settings'
 import { LoadingError } from './LoadingError'
+import { Paginator } from './Paginator'
 
 // settings 可选：旧 App.jsx 过渡期不传也能编译/渲染（用默认值），后续任务起由 App 正式传入。
 interface ChapterViewProps {
@@ -11,6 +12,8 @@ interface ChapterViewProps {
   html: string
   settings?: ReadingSettings
   onRetry?: () => void
+  page?: number
+  onPageChange?: (page: number, total: number) => void
 }
 
 const FONT_FAMILY_VAR: Record<ReadingSettings['fontFamily'], string> = {
@@ -19,7 +22,7 @@ const FONT_FAMILY_VAR: Record<ReadingSettings['fontFamily'], string> = {
   kai: 'var(--font-kai)'
 }
 
-export function ChapterView({ chapter, status, error, html, settings = DEFAULT_SETTINGS, onRetry }: ChapterViewProps) {
+export function ChapterView({ chapter, status, error, html, settings = DEFAULT_SETTINGS, onRetry, page, onPageChange }: ChapterViewProps) {
   return (
     <article
       className="mx-auto px-4 text-fg"
@@ -34,16 +37,34 @@ export function ChapterView({ chapter, status, error, html, settings = DEFAULT_S
           >
             第{chapter.num}章 {chapter.title}
           </h1>
-          <div
-            className={`chapter-body prose max-w-none ${settings.paragraphIndent ? '' : 'no-indent'}`}
-            style={{
-              fontSize: settings.fontSize,
-              lineHeight: settings.lineHeight,
-              letterSpacing: settings.letterSpacing,
-              fontFamily: FONT_FAMILY_VAR[settings.fontFamily]
-            }}
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
+          {settings.pageMode === 'scroll' ? (
+            <div
+              className={`chapter-body prose max-w-none ${settings.paragraphIndent ? '' : 'no-indent'}`}
+              style={{
+                fontSize: settings.fontSize,
+                lineHeight: settings.lineHeight,
+                letterSpacing: settings.letterSpacing,
+                fontFamily: FONT_FAMILY_VAR[settings.fontFamily]
+              }}
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+          ) : (
+            <div style={{ height: 'calc(100vh - 220px)' }}>
+              <Paginator
+                html={html}
+                mode={settings.pageMode}
+                page={page ?? 0}
+                onPageChange={onPageChange ?? (() => {})}
+                className={`chapter-body prose max-w-none ${settings.paragraphIndent ? '' : 'no-indent'}`}
+                style={{
+                  fontSize: settings.fontSize,
+                  lineHeight: settings.lineHeight,
+                  letterSpacing: settings.letterSpacing,
+                  fontFamily: FONT_FAMILY_VAR[settings.fontFamily]
+                }}
+              />
+            </div>
+          )}
         </>
       )}
     </article>

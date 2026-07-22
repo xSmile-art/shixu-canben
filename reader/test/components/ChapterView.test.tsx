@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { ChapterView } from '@components/reader/ChapterView'
 import { DEFAULT_SETTINGS } from '@app-types/settings'
@@ -39,5 +39,24 @@ describe('ChapterView', () => {
     render(<ChapterView chapter={chapter} status="error" error="网络错误" html="" settings={DEFAULT_SETTINGS} onRetry={() => {}} />)
     expect(screen.getByText('网络错误')).toBeInTheDocument()
     expect(screen.getByText('重试')).toBeInTheDocument()
+  })
+
+  it('pageMode=horizontal 时渲染翻页按钮（Paginator）', () => {
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(60)
+    render(
+      <ChapterView chapter={chapter} status="success" error={null} html="<p>x</p><p>y</p>"
+        settings={{ ...DEFAULT_SETTINGS, pageMode: 'horizontal' }} page={0} onPageChange={() => {}} />
+    )
+    expect(screen.getByLabelText('下一页')).toBeInTheDocument()
+    vi.restoreAllMocks()
+  })
+
+  it('pageMode=scroll 时渲染滚动正文（无翻页按钮）', () => {
+    render(
+      <ChapterView chapter={chapter} status="success" error={null} html="<p>x</p>"
+        settings={{ ...DEFAULT_SETTINGS, pageMode: 'scroll' }} />
+    )
+    expect(screen.queryByLabelText('下一页')).not.toBeInTheDocument()
   })
 })
