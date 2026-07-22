@@ -27,6 +27,8 @@ export default function App() {
 
   // 初始章号：URL > 进度 > 第一章（章号在索引就绪后兜底选中）
   const [currentNum, setCurrentNum] = useState(() => readUrlNum() || progress.num || null)
+  // 移动端目录抽屉开关
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const currentChapter = chapters.find(c => c.num === currentNum) || null
   const { html, status: chStatus, error: chError } = useChapter(currentChapter)
@@ -57,12 +59,13 @@ export default function App() {
     }
   }, [listStatus, currentNum, chapters, progress.num])
 
-  // 切章：更新状态 + URL + 进度，滚到顶
+  // 切章：更新状态 + URL + 进度，滚到顶，并关闭移动端目录
   const selectChapter = useCallback((num) => {
     setCurrentNum(num)
     writeUrlNum(num)
     progress.save(num, 0)
     window.scrollTo(0, 0)
+    setSidebarOpen(false)
   }, [progress])
 
   // 邻章
@@ -107,18 +110,28 @@ export default function App() {
 
   const backToTop = useCallback(() => window.scrollTo({ top: 0, behavior: 'smooth' }), [])
 
+  const closeSidebar = useCallback(() => setSidebarOpen(false), [])
+  const toggleSidebar = useCallback(() => setSidebarOpen(v => !v), [])
+
   return (
-    <div className="app">
+    <div className={`app ${sidebarOpen ? 'sidebar-open' : ''}`}>
       <Toolbar
         theme={theme}
         onToggleTheme={toggleTheme}
         fontSize={fontSize}
         onChangeFontSize={setFontSize}
         onBackToTop={backToTop}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={toggleSidebar}
       />
+      {/* 移动端遮罩：点空白关闭目录 */}
+      <div className="overlay" onClick={closeSidebar} />
       <div className="main">
         <aside className="sidebar">
-          <h2 className="book-title">时序残本</h2>
+          <div className="sidebar-head">
+            <h2 className="book-title">时序残本</h2>
+            <button className="sidebar-close" onClick={closeSidebar} aria-label="关闭目录">✕</button>
+          </div>
           <ChapterList chapters={chapters} currentNum={currentNum} onSelect={selectChapter} />
         </aside>
         <main className="content">

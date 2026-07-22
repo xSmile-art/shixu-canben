@@ -4,9 +4,13 @@ const FONT_SIZES = [
   { key: 'large', label: '大' }
 ]
 
-export function Toolbar({ theme, onToggleTheme, fontSize, onChangeFontSize, onBackToTop }) {
+export function Toolbar({ theme, onToggleTheme, fontSize, onChangeFontSize, onBackToTop, sidebarOpen, onToggleSidebar }) {
   return (
     <div className="toolbar">
+      {/* 移动端汉堡按钮（桌面端 CSS 隐藏） */}
+      <button className="menu-toggle" onClick={onToggleSidebar} aria-label="目录">
+        {sidebarOpen ? '✕' : '☰'}
+      </button>
       <div className="font-sizes">
         {FONT_SIZES.map(fs => (
           <button
