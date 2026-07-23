@@ -12,17 +12,19 @@ React 19 + TypeScript + Tailwind CSS v4 + Vite 构建的小说阅读器。
 
 ## 开发
 
+包管理器用 **pnpm**（`packageManager: pnpm@10.6.5`，需先 `npm i -g pnpm` 或 `corepack enable`）。
+
 ```bash
-npm install
-npm run dev      # 本地开发
-npm test         # 单元测试（Vitest）
-npm run build    # 类型检查 + 构建到 dist/
+pnpm install
+pnpm dev        # 本地开发
+pnpm test       # 单元测试（Vitest）
+pnpm build      # 类型检查 + 构建到 dist/
 ```
 
 ## 数据
 
 章节来自 GitHub Raw（见 `src/lib/raw.ts`）。localStorage 键前缀 `sxcb-`。
-路径别名见 `tsconfig.json` 的 `paths`（Vite/Vitest 经 vite-tsconfig-paths 共享）。
+路径别名见 `tsconfig.json` 的 `paths`（Vite/Vitest 经 `resolve.tsconfigPaths` 共享）。
 
 ## 结构
 

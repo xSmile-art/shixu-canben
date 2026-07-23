@@ -1,19 +1,19 @@
-import type { LoadStatus } from '@app-types/chapter'
+import type { LoadStatus } from "@app-types/chapter";
 
 interface LoadingErrorProps {
-  status: LoadStatus
-  error: string | null
-  onRetry?: () => void
+  status: LoadStatus;
+  error: string | null;
+  onRetry?: () => void;
 }
 
 export function LoadingError({ status, error, onRetry }: LoadingErrorProps) {
-  if (status === 'loading') {
-    return <div className="py-16 text-center text-muted">加载中…</div>
+  if (status === "loading") {
+    return <div className="py-16 text-center text-muted">加载中…</div>;
   }
-  if (status === 'error') {
+  if (status === "error") {
     return (
       <div className="py-16 text-center">
-        <p className="text-fg mb-4">{error ?? '加载失败'}</p>
+        <p className="text-fg mb-4">{error ?? "加载失败"}</p>
         {onRetry && (
           <button
             onClick={onRetry}
@@ -23,7 +23,7 @@ export function LoadingError({ status, error, onRetry }: LoadingErrorProps) {
           </button>
         )}
       </div>
-    )
+    );
   }
-  return null
+  return null;
 }

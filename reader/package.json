@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.2.0",
   "type": "module",
+  "packageManager": "pnpm@10.6.5",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -27,7 +28,7 @@
     "jsdom": "^29.1.0",
     "tailwindcss": "^4.3.0",
     "typescript": "^7.0.0",
-    "vite-tsconfig-paths": "^5.1.4",
+    "vite": "^8.1.5",
     "vitest": "^4.1.0"
   }
 }

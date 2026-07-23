@@ -1,22 +1,32 @@
-import type { ReactNode } from 'react'
+import type { ReactNode } from "react";
 
-export type ToolbarPanel = 'theme' | 'typography' | 'reading' | null
+export type ToolbarPanel = "theme" | "typography" | "reading" | null;
 
 interface FloatingToolbarProps {
-  activePanel: ToolbarPanel
-  onOpenPanel: (p: Exclude<ToolbarPanel, null>) => void
-  onClosePanel: () => void
-  onBackToTop: () => void
-  children: ReactNode   // SettingsPanel
+  activePanel: ToolbarPanel;
+  onOpenPanel: (p: Exclude<ToolbarPanel, null>) => void;
+  onClosePanel: () => void;
+  onBackToTop: () => void;
+  children: ReactNode; // SettingsPanel
 }
 
-const BUTTONS: { key: Exclude<ToolbarPanel, null>; label: string; icon: string }[] = [
-  { key: 'theme', label: '主题', icon: '🎨' },
-  { key: 'typography', label: '排版', icon: 'Aa' },
-  { key: 'reading', label: '阅读', icon: '⚙' }
-]
+const BUTTONS: {
+  key: Exclude<ToolbarPanel, null>;
+  label: string;
+  icon: string;
+}[] = [
+  { key: "theme", label: "主题", icon: "🎨" },
+  { key: "typography", label: "排版", icon: "Aa" },
+  { key: "reading", label: "阅读", icon: "⚙" },
+];
 
-export function FloatingToolbar({ activePanel, onOpenPanel, onClosePanel, onBackToTop, children }: FloatingToolbarProps) {
+export function FloatingToolbar({
+  activePanel,
+  onOpenPanel,
+  onClosePanel,
+  onBackToTop,
+  children,
+}: FloatingToolbarProps) {
   return (
     <div className="hidden md:block">
       {/* 打开面板时的全屏透明层：点外部关闭（设计要求） */}
@@ -34,14 +44,18 @@ export function FloatingToolbar({ activePanel, onOpenPanel, onClosePanel, onBack
           </div>
         )}
         <div className="flex flex-col gap-1 bg-bg border border-border rounded-full shadow-lg p-1.5">
-          {BUTTONS.map(b => (
+          {BUTTONS.map((b) => (
             <button
               key={b.key}
               aria-label={b.label}
               title={b.label}
-              onClick={() => (activePanel === b.key ? onClosePanel() : onOpenPanel(b.key))}
+              onClick={() =>
+                activePanel === b.key ? onClosePanel() : onOpenPanel(b.key)
+              }
               className={`w-10 h-10 rounded-full text-sm flex items-center justify-center transition-colors ${
-                activePanel === b.key ? 'bg-highlight text-accent' : 'text-muted hover:bg-highlight hover:text-fg'
+                activePanel === b.key
+                  ? "bg-highlight text-accent"
+                  : "text-muted hover:bg-highlight hover:text-fg"
               }`}
             >
               {b.icon}
@@ -58,5 +72,5 @@ export function FloatingToolbar({ activePanel, onOpenPanel, onClosePanel, onBack
         </div>
       </div>
     </div>
-  )
+  );
 }
