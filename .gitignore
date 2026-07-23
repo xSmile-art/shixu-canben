@@ -23,6 +23,7 @@ ehthumbs.db
 .cache/
 tmp/
 **/.cache/
+.superpowers/
 
 # ===== 临时与备份文件 =====
 *.tmp
