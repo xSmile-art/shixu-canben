@@ -1,5 +1,10 @@
 export type FontFamily = "serif" | "sans" | "kai";
-export type PageMode = "scroll" | "horizontal" | "vertical";
+
+/** 阅读模式：滚动 or 分页 */
+export type PageMode = "scroll" | "paged";
+
+/** 翻页动画样式（仅 pageMode === "paged" 时有效） */
+export type FlipStyle = "simulate" | "cover" | "slide" | "vertical" | "none";
 
 export interface ReadingSettings {
   fontFamily: FontFamily;
@@ -10,6 +15,7 @@ export interface ReadingSettings {
   paragraphIndent: boolean;
   contentWidth: number; // 600-900 px
   pageMode: PageMode;
+  flipStyle: FlipStyle;
   brightness: number; // 0.3-1.0
 }
 
@@ -22,5 +28,6 @@ export const DEFAULT_SETTINGS: ReadingSettings = {
   paragraphIndent: true,
   contentWidth: 720,
   pageMode: "scroll",
+  flipStyle: "simulate",
   brightness: 1.0,
 };

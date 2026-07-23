@@ -31,6 +31,8 @@ html,
 body,
 #root {
   height: 100%;
+  /* 移动端使用动态视口高度，避免 URL 栏导致的滚动条 */
+  height: 100dvh;
 }
 
 body {
@@ -40,6 +42,15 @@ body {
   transition:
     background-color 0.2s ease,
     color 0.2s ease;
+  /* 防止移动端橡皮筋效果导致的外层滚动 */
+  overscroll-behavior: none;
+}
+
+/* 移动端：禁止 body 滚动，由内部容器管理 */
+@media (max-width: 719px) {
+  body {
+    overflow: hidden;
+  }
 }
 
 /* 正文排版：字号/行距/字间距/段间距/缩进由 --reader-* 变量驱动 */

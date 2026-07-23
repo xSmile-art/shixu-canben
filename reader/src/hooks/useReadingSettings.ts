@@ -1,12 +1,10 @@
 import { useState, useCallback, useEffect } from "react";
-import type { ReadingSettings } from "@app-types/settings";
+import type { ReadingSettings, FlipStyle } from "@app-types/settings";
 import { DEFAULT_SETTINGS } from "@app-types/settings";
 import { readStorage, writeStorage } from "@lib/storage";
 
 export const SETTINGS_KEY = "sxcb-settings";
 
-// 把阅读设置写到 <html> 的 --reader-* CSS 变量，驱动 index.css 里 .chapter-body 的
-// 字号/行距/字间距/段间距/首行缩进/页宽。缺了这步，段间距与缩进设置不生效。
 export function applyReadingSettings(s: ReadingSettings): void {
   const root = document.documentElement;
   root.style.setProperty("--reader-font-size", `${s.fontSize}px`);
@@ -23,7 +21,6 @@ export function applyReadingSettings(s: ReadingSettings): void {
   );
 }
 
-// 从 localStorage 读出的值做类型/范围校验，非法字段回退默认，避免非法 CSS 值。
 const RANGES = {
   fontSize: [14, 24],
   lineHeight: [1.5, 2.5],
@@ -32,6 +29,14 @@ const RANGES = {
   contentWidth: [600, 900],
   brightness: [0.3, 1.0],
 } as const;
+
+const FLIP_STYLES: FlipStyle[] = [
+  "simulate",
+  "cover",
+  "slide",
+  "vertical",
+  "none",
+];
 
 function clamp(
   v: unknown,
@@ -46,8 +51,41 @@ function clamp(
 function sanitizeSettings(raw: unknown): ReadingSettings {
   const o = (
     raw && typeof raw === "object" ? raw : {}
-  ) as Partial<ReadingSettings>;
+  ) as Partial<ReadingSettings> & {
+    pageMode?: string; // 兼容旧值 "horizontal" / "vertical"
+    flipStyle?: string;
+  };
   const d = DEFAULT_SETTINGS;
+
+  // ---- 旧 pageMode 迁移 ----
+  const rawPm: string | undefined = o.pageMode;
+  let pageMode: ReadingSettings["pageMode"];
+  if (rawPm === "scroll" || rawPm === "paged") {
+    pageMode = rawPm;
+  } else if (rawPm === "horizontal" || rawPm === "vertical") {
+    pageMode = "paged";
+  } else {
+    pageMode = d.pageMode;
+  }
+
+  // ---- flipStyle 推断 ----
+  let flipStyle: FlipStyle;
+  const rawFs = o.flipStyle;
+  if (
+    typeof rawFs === "string" &&
+    (FLIP_STYLES as string[]).includes(rawFs)
+  ) {
+    flipStyle = rawFs as FlipStyle;
+  } else if (rawPm === "vertical") {
+    // 旧的 "vertical" pageMode → flipStyle: "vertical"
+    flipStyle = "vertical";
+  } else if (rawPm === "horizontal") {
+    // 旧的 "horizontal" pageMode → flipStyle: "simulate"
+    flipStyle = "simulate";
+  } else {
+    flipStyle = d.flipStyle;
+  }
+
   return {
     fontFamily:
       o.fontFamily === "serif" ||
@@ -72,12 +110,8 @@ function sanitizeSettings(raw: unknown): ReadingSettings {
         ? o.paragraphIndent
         : d.paragraphIndent,
     contentWidth: clamp(o.contentWidth, RANGES.contentWidth, d.contentWidth),
-    pageMode:
-      o.pageMode === "scroll" ||
-      o.pageMode === "horizontal" ||
-      o.pageMode === "vertical"
-        ? o.pageMode
-        : d.pageMode,
+    pageMode,
+    flipStyle,
     brightness: clamp(o.brightness, RANGES.brightness, d.brightness),
   };
 }

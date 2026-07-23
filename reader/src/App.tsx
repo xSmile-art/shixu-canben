@@ -35,6 +35,32 @@ const SHEET_TAB_TITLE: Record<SettingsTabKey, string> = {
   reading: "阅读",
 };
 
+// 移动端底部导航按钮定义（与 PC FloatingToolbar 共享图标风格）
+const MOBILE_NAV_BUTTONS: {
+  key: string;
+  label: string;
+  icon: string;
+  action: "catalog" | "settings";
+  tab?: SettingsTabKey;
+}[] = [
+  { key: "catalog", label: "目录", icon: "☰", action: "catalog" },
+  { key: "theme", label: "主题", icon: "🎨", action: "settings", tab: "theme" },
+  {
+    key: "typography",
+    label: "排版",
+    icon: "Aa",
+    action: "settings",
+    tab: "typography",
+  },
+  {
+    key: "reading",
+    label: "阅读",
+    icon: "⚙",
+    action: "settings",
+    tab: "reading",
+  },
+];
+
 export default function App() {
   const {
     chapters,
@@ -58,11 +84,15 @@ export default function App() {
   const [sheetPanel, setSheetPanel] = useState<"catalog" | "settings" | null>(
     null,
   );
-  // 移动端 BottomSheet 打开设置时定位到哪个 Tab（设计的 主题/排版/阅读 入口）
   const [sheetTab, setSheetTab] = useState<SettingsTabKey>("theme");
+  // 移动端底部栏显示/隐藏
+  const [mobileNavVisible, setMobileNavVisible] = useState(true);
 
   const currentChapter = chapters.find((c) => c.num === currentNum) ?? null;
   const { html, status: chStatus, error: chError } = useChapter(currentChapter);
+
+  // 正文可滚动区域 ref（移动端内部滚动，桌面端 window 滚动）
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // 索引就绪后兜底选章
   useEffect(() => {
@@ -77,7 +107,9 @@ export default function App() {
       setCurrentNum(num);
       writeUrlNum(num);
       progress.save(num, 0);
+      // 桌面端用 window 滚动，移动端用内部滚动容器
       window.scrollTo(0, 0);
+      if (scrollRef.current) scrollRef.current.scrollTop = 0;
       setSidebarOpen(false);
       setSheetPanel(null);
     },
@@ -104,21 +136,30 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [goPrev, goNext]);
 
-  // 滚动防抖存进度
+  // 滚动防抖存进度（桌面端 window 滚动 + 移动端内部滚动）
   const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (chStatus !== "success" || settings.pageMode !== "scroll") return;
+    if (chStatus !== "success" || settings.pageMode === "paged") return;
+    const scrollEl = scrollRef.current;
     const onScroll = () => {
       if (scrollTimer.current) clearTimeout(scrollTimer.current);
       scrollTimer.current = setTimeout(() => {
-        progress.save(currentNum, window.scrollY);
+        // 优先取移动端内部滚动位置，其次 window 滚动
+        const top = scrollEl ? scrollEl.scrollTop : window.scrollY;
+        progress.save(currentNum, top);
       }, 300);
     };
+    // 监听内部滚动（移动端）
+    if (scrollEl) scrollEl.addEventListener("scroll", onScroll);
+    // 同时监听 window 滚动（桌面端）
     window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      if (scrollEl) scrollEl.removeEventListener("scroll", onScroll);
+      window.removeEventListener("scroll", onScroll);
+    };
   }, [chStatus, currentNum, progress, settings.pageMode]);
 
-  // 进入恢复滚动位置（一次）。restored 须在相关 useEffect 之前声明。
+  // 进入恢复滚动位置（一次）
   const restored = useRef(false);
   useEffect(() => {
     restored.current = false;
@@ -131,11 +172,12 @@ export default function App() {
       progress.scrollTop
     ) {
       window.scrollTo(0, progress.scrollTop);
+      if (scrollRef.current) scrollRef.current.scrollTop = progress.scrollTop;
       restored.current = true;
     }
   }, [chStatus, currentNum, progress]);
 
-  // 翻页模式：页码存 progress.scrollTop 字段（数据兼容）
+  // 翻页模式：页码存 progress.scrollTop 字段
   const handlePageChange = useCallback(
     (page: number, _total: number) => {
       progress.save(currentNum, page);
@@ -143,21 +185,39 @@ export default function App() {
     [progress, currentNum],
   );
 
-  const backToTop = useCallback(
-    () => window.scrollTo({ top: 0, behavior: "smooth" }),
-    [],
-  );
+  // 回到顶部（移动端用内部滚动，桌面端用 window）
+  const backToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, []);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
   const openSidebar = useCallback(() => setSidebarOpen(true), []);
 
-  // 工具条与 SettingsPanel 的 Tab 串联：点工具条图标，面板跳对应 Tab
+  // 移动端：点击正文区域切换底部栏显示/隐藏
+  const handleContentTap = useCallback(
+    (e: React.MouseEvent) => {
+      // 不拦截按钮、链接等交互元素的点击
+      const target = e.target as HTMLElement;
+      if (
+        target.closest("button") ||
+        target.closest("a") ||
+        target.closest("input") ||
+        target.closest("select")
+      )
+        return;
+      setMobileNavVisible((v) => !v);
+    },
+    [],
+  );
+
   const activeTab: SettingsTabKey = toolbarPanel ?? "theme";
   const handleTabChange = useCallback(
     (key: SettingsTabKey) => setToolbarPanel(key),
     [],
   );
 
-  // 移动端：点底部 主题/排版/阅读 入口 → 打开 BottomSheet 并定位到对应 Tab
   const openSheetTab = useCallback((tab: SettingsTabKey) => {
     setSheetTab(tab);
     setSheetPanel("settings");
@@ -177,9 +237,9 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-full bg-bg text-fg">
+    <div className="h-dvh md:min-h-full bg-bg text-fg flex flex-col md:block overflow-hidden md:overflow-visible">
       {/* 移动端顶栏 */}
-      <header className="md:hidden sticky top-0 z-20 flex items-center justify-between px-4 py-2 bg-bg border-b border-border">
+      <header className="md:hidden shrink-0 flex items-center justify-between px-4 py-2 bg-bg border-b border-border">
         <button
           aria-label="打开目录"
           onClick={openSidebar}
@@ -197,7 +257,7 @@ export default function App() {
         </button>
       </header>
 
-      <div className="flex">
+      <div className="flex md:items-start flex-1 md:flex-initial min-h-0">
         <Sidebar
           open={sidebarOpen}
           chapters={chapters}
@@ -205,8 +265,14 @@ export default function App() {
           onSelect={selectChapter}
           onClose={closeSidebar}
         />
-        {/* pb-24 给移动端底部按钮栏留位，避免遮挡正文 */}
-        <main className="flex-1 min-w-0 py-6 pb-24 md:pb-6">
+        {/* 移动端：内部滚动；桌面端：自然流式滚动 */}
+        <main
+          ref={scrollRef}
+          onClick={handleContentTap}
+          className={`flex-1 min-w-0 py-6 overflow-y-auto md:overflow-visible ${
+            mobileNavVisible ? "pb-14" : "pb-0"
+          } md:pb-6`}
+        >
           {listStatus === "error" ? (
             <ChapterView
               chapter={null}
@@ -256,32 +322,32 @@ export default function App() {
         {settingsPanelEl}
       </FloatingToolbar>
 
-      {/* 移动端底部按钮栏：目录 + 主题/排版/阅读 4 入口 */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-20 flex bg-bg border-t border-border">
-        <button
-          className="flex-1 py-3 text-sm text-fg"
-          onClick={() => setSheetPanel("catalog")}
-        >
-          目录
-        </button>
-        <button
-          className="flex-1 py-3 text-sm text-fg"
-          onClick={() => openSheetTab("theme")}
-        >
-          主题
-        </button>
-        <button
-          className="flex-1 py-3 text-sm text-fg"
-          onClick={() => openSheetTab("typography")}
-        >
-          排版
-        </button>
-        <button
-          className="flex-1 py-3 text-sm text-fg"
-          onClick={() => openSheetTab("reading")}
-        >
-          阅读
-        </button>
+      {/* 移动端底部图标导航栏：点击屏幕切换显示/隐藏 */}
+      <nav
+        className={`md:hidden fixed bottom-0 left-0 right-0 z-20 bg-bg border-t border-border transition-transform duration-300 ${
+          mobileNavVisible ? "translate-y-0" : "translate-y-full"
+        }`}
+      >
+        <div className="flex">
+          {MOBILE_NAV_BUTTONS.map((b) => (
+            <button
+              key={b.key}
+              aria-label={b.label}
+              title={b.label}
+              className="flex-1 py-2 flex flex-col items-center justify-center gap-0.5 text-muted hover:text-fg transition-colors"
+              onClick={() => {
+                if (b.action === "catalog") {
+                  setSheetPanel("catalog");
+                } else if (b.tab) {
+                  openSheetTab(b.tab);
+                }
+              }}
+            >
+              <span className="text-lg leading-none">{b.icon}</span>
+              <span className="text-[10px] leading-none">{b.label}</span>
+            </button>
+          ))}
+        </div>
       </nav>
 
       {/* 移动端底部弹层：目录 */}
@@ -308,7 +374,7 @@ export default function App() {
         </ul>
       </BottomSheet>
 
-      {/* 移动端底部弹层：设置（按入口定位到对应 Tab） */}
+      {/* 移动端底部弹层：设置 */}
       <BottomSheet
         open={sheetPanel === "settings"}
         title={SHEET_TAB_TITLE[sheetTab]}
