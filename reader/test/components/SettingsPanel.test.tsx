@@ -42,7 +42,7 @@ describe("SettingsPanel", () => {
         onTabChange={() => {}}
       />,
     );
-    expect(screen.getByText("翻页模式")).toBeInTheDocument();
+    expect(screen.getByText("阅读模式")).toBeInTheDocument();
     expect(screen.getByText("亮度")).toBeInTheDocument();
   });
 

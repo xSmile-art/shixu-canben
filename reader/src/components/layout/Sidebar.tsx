@@ -30,7 +30,7 @@ export function Sidebar({
         className={`
           fixed top-0 left-0 h-full w-60 z-40 bg-bg border-r border-border
           flex flex-col transition-transform duration-200
-          md:static md:translate-x-0 md:z-auto md:h-auto md:shrink-0
+          md:sticky md:top-0 md:translate-x-0 md:z-auto md:h-screen md:shrink-0
           ${open ? "translate-x-0" : "-translate-x-full"}
         `}
       >

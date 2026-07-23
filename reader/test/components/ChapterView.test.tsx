@@ -77,7 +77,7 @@ describe("ChapterView", () => {
     expect(screen.getByText("重试")).toBeInTheDocument();
   });
 
-  it("pageMode=horizontal 时渲染翻页按钮（Paginator）", () => {
+  it("pageMode=paged 时渲染翻页按钮（Paginator）", () => {
     vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(100);
     vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(60);
     render(
@@ -86,7 +86,7 @@ describe("ChapterView", () => {
         status="success"
         error={null}
         html="<p>x</p><p>y</p>"
-        settings={{ ...DEFAULT_SETTINGS, pageMode: "horizontal" }}
+        settings={{ ...DEFAULT_SETTINGS, pageMode: "paged", flipStyle: "simulate" }}
         page={0}
         onPageChange={() => {}}
       />,

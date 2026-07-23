@@ -19,7 +19,7 @@ describe("Paginator", () => {
     render(
       <Paginator
         html={html}
-        mode="horizontal"
+        flipStyle="simulate"
         page={0}
         onPageChange={() => {}}
       />,
@@ -32,7 +32,7 @@ describe("Paginator", () => {
     render(
       <Paginator
         html={html}
-        mode="horizontal"
+        flipStyle="simulate"
         page={0}
         onPageChange={onPageChange}
       />,
@@ -46,7 +46,7 @@ describe("Paginator", () => {
     render(
       <Paginator
         html={html}
-        mode="horizontal"
+        flipStyle="simulate"
         page={0}
         onPageChange={() => {}}
       />,

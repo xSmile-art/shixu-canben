@@ -61,7 +61,7 @@ export function ChapterView({
             <div style={{ height: "calc(100vh - 220px)" }}>
               <Paginator
                 html={html}
-                mode={settings.pageMode}
+                flipStyle={settings.flipStyle}
                 page={page ?? 0}
                 onPageChange={onPageChange ?? (() => {})}
                 className={`chapter-body prose max-w-none ${settings.paragraphIndent ? "" : "no-indent"}`}
