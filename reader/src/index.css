@@ -1,0 +1,68 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  /* 6 个主题色槽位 — 默认值（日间白），运行时由 applyTheme 覆盖 */
+  --color-bg: #ffffff;
+  --color-fg: #1a1a1a;
+  --color-accent: #8b5a2b;
+  --color-muted: #666666;
+  --color-border: #e0ddd5;
+  --color-highlight: rgba(139, 90, 43, 0.12);
+
+  /* 阅读设置变量 — 运行时由 applyReadingSettings 写入 <html> */
+  --reader-font-size: 18px;
+  --reader-line-height: 1.9;
+  --reader-letter-spacing: 0px;
+  --reader-content-width: 720px;
+  --reader-paragraph-spacing: 1em;
+  --reader-paragraph-indent: 2em;
+
+  /* PC/移动端分界：设计要求 720px（Tailwind 默认 md 是 768px，这里覆盖） */
+  --breakpoint-md: 720px;
+
+  /* 字体 */
+  --font-serif: "Noto Serif SC", "Songti SC", serif;
+  --font-sans: "Noto Sans SC", "PingFang SC", sans-serif;
+  --font-kai: "Kaiti SC", "KaiTi", serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  /* 移动端使用动态视口高度，避免 URL 栏导致的滚动条 */
+  height: 100dvh;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-serif);
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+  /* 防止移动端橡皮筋效果导致的外层滚动 */
+  overscroll-behavior: none;
+}
+
+/* 移动端：禁止 body 滚动，由内部容器管理 */
+@media (max-width: 719px) {
+  body {
+    overflow: hidden;
+  }
+}
+
+/* 正文排版：字号/行距/字间距/段间距/缩进由 --reader-* 变量驱动 */
+.chapter-body {
+  font-size: var(--reader-font-size);
+  line-height: var(--reader-line-height);
+  letter-spacing: var(--reader-letter-spacing);
+}
+.chapter-body p {
+  margin-bottom: var(--reader-paragraph-spacing);
+  text-indent: var(--reader-paragraph-indent);
+}
+.chapter-body.no-indent p {
+  text-indent: 0;
+}
