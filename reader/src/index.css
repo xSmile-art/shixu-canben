@@ -31,8 +31,10 @@ html,
 body,
 #root {
   height: 100%;
-  /* 移动端使用动态视口高度，避免 URL 栏导致的滚动条 */
+  /* 移动端高度链：vh 兜底 → dvh（动态） → lvh（大视口，URL 栏伸缩不抖动） */
+  height: 100vh;
   height: 100dvh;
+  height: 100lvh;
 }
 
 body {
@@ -65,4 +67,44 @@ body {
 }
 .chapter-body.no-indent p {
   text-indent: 0;
+}
+
+/* ===== 移动端安全区 ===== */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ===== 翻页双层（进度驱动） ===== */
+.paginate-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.paginate-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  will-change: transform;
+  background: var(--color-bg);
+}
+.paginate-layer-front {
+  z-index: 2;
+}
+.paginate-layer-back {
+  z-index: 1;
+}
+.paginate-spine {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0.08) 0%,
+    rgba(0, 0, 0, 0.03) 8px,
+    transparent 24px
+  );
 }
