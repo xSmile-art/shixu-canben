@@ -56,7 +56,9 @@ describe("tween", () => {
 
     const cancel = tween(0, 100, 160, easeOutCubic, onFrame, onDone);
     cancel();
-    if (rafCb) rafCb(32);
+    // TS 对闭包内赋值的 rafCb 窄化为 never，这里显式绕开
+    const cb = rafCb as FrameRequestCallback | null;
+    if (cb) cb(32);
     expect(onFrame).not.toHaveBeenCalled();
     expect(onDone).not.toHaveBeenCalled();
   });
