@@ -87,7 +87,7 @@ export function splitIntoPagesByLine(
       current.push({ kind: "slice", index, fromLine: i, toLine: end });
       used += h;
       i = end;
-      if (i < lines.length) flush();
+      // 注意：这里不 flush()，继续累加后续行到同一页，直到放不下为止
     }
   };
 
@@ -112,8 +112,11 @@ export function splitIntoPagesByLine(
       if (end > 0) {
         current.push({ kind: "slice", index, fromLine: 0, toLine: end });
         used += h;
-        flush();
-        sliceIntoPages(index, lineHeights, end);
+        if (end < lineHeights.length) {
+          // 还有剩余行 → 换页续切
+          flush();
+          sliceIntoPages(index, lineHeights, end);
+        }
         return;
       }
       // 一行也放不下 → 换页，从整块继续
