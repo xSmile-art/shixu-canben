@@ -450,8 +450,9 @@ function renderItems(
     if (item.kind === "block") {
       return <div key={i} dangerouslySetInnerHTML={{ __html: html }} />;
     }
-    // slice：用 maxHeight 截断 toLine 之后的内容；fromLine > 0 时用负 marginTop
-    // 把前面的行顶出可视区。两者都按测量行高对齐，避免切割文字。
+    // slice：内层先 translateY(-offset) 把 fromLine 之前的行顶出去，
+    // 外层用 height = 切片实际高度 + overflow hidden 截断 toLine 之后的内容。
+    // transform 不影响文档流高度，因此外层高度就是切片真实可视高度，不留空白。
     const lines = blockLines[item.index] ?? [];
     const from = Math.min(item.fromLine, lines.length);
     const to = Math.min(item.toLine, lines.length);
@@ -461,14 +462,17 @@ function renderItems(
       <div
         key={i}
         style={{
-          maxHeight: Math.ceil(visible),
+          height: Math.ceil(visible),
           overflow: "hidden",
-          marginTop: from > 0 ? -Math.ceil(offset) : 0,
           // 非末段切片底部不出段间距
           marginBottom: to < lines.length ? 0 : undefined,
         }}
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
+      >
+        <div
+          style={{ transform: from > 0 ? `translateY(${-offset}px)` : undefined }}
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      </div>
     );
   });
 }
