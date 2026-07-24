@@ -5,37 +5,48 @@ import {
   useState,
   useCallback,
   type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import type { FlipStyle } from "@app-types/settings";
 import { splitIntoPages } from "@lib/paginate";
+import { zoneOf } from "@lib/tapZone";
+import { axisOf, frameFor, type FlipDir } from "@lib/flipStyle";
+import { tween, easeOutCubic } from "@lib/tween";
 
-interface PaginatorProps {
+export interface PaginatorProps {
   html: string;
   flipStyle: FlipStyle;
   page: number;
+  /** 跨章落点：分页就绪后跳到该页，消费后由 onPageChange 链路清除 */
+  pendingPage?: number | "last" | null;
   onPageChange: (page: number, total: number) => void;
+  onToggleMenu: () => void;
+  onRequestChapter: (dir: "prev" | "next", land: "first" | "last") => void;
   className?: string;
   style?: CSSProperties;
 }
 
-type FlipDir = "next" | "prev" | null;
+interface FlipState {
+  dir: FlipDir;
+  from: number;
+  to: number;
+  p: number;
+}
 
-/**
- * JS 分页 + 五种翻页动画。
- *
- * | flipStyle  | 效果                                          |
- * |-----------|-----------------------------------------------|
- * | simulate  | 3D 仿真翻书：perspective + rotateY，两层结构    |
- * | cover     | 覆盖：新页从右侧滑入盖住旧页                     |
- * | slide     | 平移：新旧两页同时横向滑动                       |
- * | vertical  | 上下翻页：旧页向上滑出，新页从下滑入              |
- * | none      | 无动画：瞬间切换                                |
- */
+const TAP_MAX_DIST = 10; // px
+const TAP_MAX_MS = 300;
+const FLIP_COMMIT_P = 0.3; // 松手超过该进度则完成翻页
+const FLIP_COMMIT_V = 0.0005; // 进度/ms（≈0.5px/ms 换算）
+const TWEEN_MS = 240;
+
 export function Paginator({
   html,
   flipStyle,
   page,
+  pendingPage = null,
   onPageChange,
+  onToggleMenu,
+  onRequestChapter,
   className = "",
   style,
 }: PaginatorProps) {
@@ -43,336 +54,297 @@ export function Paginator({
   const [pages, setPages] = useState<string[][]>([]);
   const blocks = useMemo(() => splitBlocks(html), [html]);
 
-  const [animating, setAnimating] = useState(false);
-  const [flipDir, setFlipDir] = useState<FlipDir>(null);
-  const [renderPage, setRenderPage] = useState(page);
-  const [prevRenderPage, setPrevRenderPage] = useState<number | null>(null);
-  const prevPageRef = useRef(page);
+  const total = pages.length;
+  const safePage = Math.min(Math.max(page, 0), Math.max(total - 1, 0));
 
-  // ---- 分页测量 ----
+  // ---- 翻页进行态（p 用 ref 高频更新，避免频繁 setState） ----
+  const [flip, setFlip] = useState<FlipState | null>(null);
+  const flipRef = useRef<FlipState | null>(null);
+  const frontRef = useRef<HTMLDivElement>(null);
+  const backRef = useRef<HTMLDivElement>(null);
+  const tweenCancelRef = useRef<(() => void) | null>(null);
+
+  const setP = useCallback(
+    (p: number) => {
+      const f = flipRef.current;
+      if (!f) return;
+      f.p = p;
+      applyFrame(flipStyle, f, frontRef.current, backRef.current);
+    },
+    [flipStyle],
+  );
+
+  // ---- 分页测量（宽度变化或高度变化 >100px 才重排，防 URL 栏抖动） ----
+  const lastSizeRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const measure = () => {
-      const pageHeight = el.clientHeight;
-      if (!pageHeight) return;
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      const last = lastSizeRef.current;
+      const widthChanged = w !== last.w;
+      const heightJump = Math.abs(h - last.h) > 100;
+      if (!widthChanged && !heightJump && last.w !== 0) return;
+      lastSizeRef.current = { w, h };
+      if (!h) return;
       const heights = blocks.map((b) => measureBlock(b, el));
-      const idxPages = splitIntoPages(heights, pageHeight);
-      setPages(idxPages.map((idxArr) => idxArr.map((i) => blocks[i])));
+      const idxPages = splitIntoPages(heights, h);
+      setPages(idxPages.map((arr) => arr.map((i) => blocks[i])));
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blocks]);
 
-  const total = pages.length;
-  const safePage = Math.min(Math.max(page, 0), Math.max(total - 1, 0));
-
+  // ---- 首次/总页数变化上报 ----
   useEffect(() => {
     if (total > 0) onPageChange(safePage, total);
-  }, [safePage, total]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [total]);
 
-  // ---- 动画状态机 ----
+  // ---- 消费 pendingPage（跨章落点） ----
   useEffect(() => {
-    if (total === 0) return;
-    const prev = prevPageRef.current;
-    if (page !== prev && !animating) {
-      const dir: FlipDir = page > prev ? "next" : "prev";
-      setPrevRenderPage(prev);
-      setRenderPage(page);
-      setFlipDir(dir);
-      setAnimating(true);
-    }
-    prevPageRef.current = page;
-  }, [page, total, animating]);
+    if (pendingPage == null || total === 0) return;
+    const target = pendingPage === "last" ? total - 1 : pendingPage;
+    const clamped = Math.min(Math.max(target, 0), total - 1);
+    onPageChange(clamped, total);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPage, total]);
 
-  const onAnimationEnd = useCallback(() => {
-    setAnimating(false);
-    setFlipDir(null);
-    setPrevRenderPage(null);
-  }, []);
+  // ---- 完成/回弹补间 ----
+  const finishFlip = useCallback(
+    (commit: boolean) => {
+      const f = flipRef.current;
+      if (!f) return;
+      tweenCancelRef.current?.();
+      const target = commit ? 1 : 0;
+      const dur = TWEEN_MS * Math.abs(target - f.p);
+      tweenCancelRef.current = tween(
+        f.p,
+        target,
+        dur,
+        easeOutCubic,
+        (v) => setP(v),
+        () => {
+          tweenCancelRef.current = null;
+          flipRef.current = null;
+          setFlip(null);
+          if (commit) onPageChange(f.to, total);
+        },
+      );
+    },
+    [onPageChange, setP, total],
+  );
 
-  const go = (delta: number) => {
-    if (animating) return;
-    const next = Math.min(Math.max(safePage + delta, 0), total - 1);
-    if (next === safePage) return;
-    const dir: FlipDir = delta > 0 ? "next" : "prev";
-    setPrevRenderPage(safePage);
-    setRenderPage(next);
-    setFlipDir(dir);
-    setAnimating(true);
-    onPageChange(next, total);
+  const startFlip = useCallback(
+    (dir: FlipDir, from: number, to: number, p0 = 0) => {
+      tweenCancelRef.current?.();
+      const f: FlipState = { dir, from, to, p: p0 };
+      flipRef.current = f;
+      setFlip(f);
+      // 双层渲染后设初始帧
+      requestAnimationFrame(() =>
+        applyFrame(flipStyle, f, frontRef.current, backRef.current),
+      );
+    },
+    [flipStyle],
+  );
+
+  // ---- tap 触发的翻页 ----
+  const tapFlip = useCallback(
+    (dir: FlipDir) => {
+      if (flipRef.current) return; // 动画中忽略 tap
+      const to = dir === "next" ? safePage + 1 : safePage - 1;
+      startFlip(dir, safePage, to, 0);
+      requestAnimationFrame(() => finishFlip(true));
+    },
+    [safePage, startFlip, finishFlip],
+  );
+
+  // ---- 手势 ----
+  const gestureRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startT: number;
+    mode: "pending" | "tap" | "pan";
+    dir: FlipDir | null;
+  } | null>(null);
+
+  const axis = axisOf(flipStyle);
+
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (gestureRef.current) return; // 单指
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    gestureRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      startT: Date.now(),
+      mode: "pending",
+      dir: flipRef.current?.dir ?? null,
+    };
   };
 
-  // ---- 静态渲染（无动画 / 非动画时刻直接显示当前页） ----
-  if (flipStyle === "none") {
-    return (
-      <div className="relative h-full">
-        <div
-          ref={containerRef}
-          className={`h-full overflow-hidden ${className}`}
-          style={{ ...style, position: "relative" }}
-        >
-          <div
-            className="paginate-page-static"
-            dangerouslySetInnerHTML={{
-              __html: pages[safePage]?.join("") ?? "",
-            }}
-          />
-        </div>
-        {total > 1 && (
-          <>
-            <ClickAreas
-              total={total}
-              safePage={safePage}
-              onPrev={() => go(-1)}
-              onNext={() => go(1)}
-            />
-            <PageIndicator page={safePage} total={total} />
-          </>
-        )}
-      </div>
-    );
-  }
+  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const g = gestureRef.current;
+    if (!g || g.pointerId !== e.pointerId) return;
 
-  // ---- 动画 CSS（按样式不同） ----
-  const isSimulate = flipStyle === "simulate";
-  const isCover = flipStyle === "cover";
-  const isSlide = flipStyle === "slide";
-  const isVertical = flipStyle === "vertical";
+    const dx = e.clientX - g.startX;
+    const dy = e.clientY - g.startY;
+    const dist = Math.hypot(dx, dy);
+
+    if (g.mode === "pending") {
+      if (dist < TAP_MAX_DIST) return;
+      if (!axis) {
+        g.mode = "tap"; // none：不跟手
+        return;
+      }
+      const primary = axis === "x" ? dx : dy;
+      const dir: FlipDir = primary < 0 ? "next" : "prev";
+      const to = dir === "next" ? safePage + 1 : safePage - 1;
+      const inRange = to >= 0 && to < total;
+      if (!inRange && !flipRef.current) {
+        g.mode = "tap"; // 边界不跟手
+        return;
+      }
+      g.mode = "pan";
+      g.dir = dir;
+      if (!flipRef.current) startFlip(dir, safePage, to, 0);
+    }
+
+    if (g.mode === "pan" && flipRef.current) {
+      const el = containerRef.current;
+      const size = axis === "x" ? el?.clientWidth : el?.clientHeight;
+      if (!size) return;
+      const primary = axis === "x" ? dx : dy;
+      // next：负向位移增大 p；prev：正向位移增大 p
+      const p =
+        g.dir === "next" ? -primary / size : primary / size;
+      setP(Math.min(Math.max(p, 0), 1));
+    }
+  };
+
+  const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const g = gestureRef.current;
+    if (!g || g.pointerId !== e.pointerId) return;
+    gestureRef.current = null;
+    const dt = Date.now() - g.startT;
+    const dx = e.clientX - g.startX;
+    const dy = e.clientY - g.startY;
+    const dist = Math.hypot(dx, dy);
+
+    // ---- tap ----
+    if (g.mode !== "pan" && dist < TAP_MAX_DIST && dt < TAP_MAX_MS) {
+      const el = containerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const zone = zoneOf((e.clientX - rect.left) / rect.width);
+      if (zone === "menu") {
+        onToggleMenu();
+        return;
+      }
+      const dir: FlipDir = zone === "next" ? "next" : "prev";
+      const to = dir === "next" ? safePage + 1 : safePage - 1;
+      if (to >= 0 && to < total) {
+        tapFlip(dir);
+      } else {
+        onRequestChapter(dir, dir === "next" ? "first" : "last");
+      }
+      return;
+    }
+
+    // ---- pan 结束：按进度/速度决定完成或回弹 ----
+    if (g.mode === "pan" && flipRef.current) {
+      const f = flipRef.current;
+      const el = containerRef.current;
+      const size = axis === "x" ? el?.clientWidth : el?.clientHeight;
+      const primary = axis === "x" ? dx : dy;
+      const v = size ? Math.abs(primary) / size / Math.max(dt, 1) : 0; // 进度/ms
+      const commit = f.p >= FLIP_COMMIT_P || v >= FLIP_COMMIT_V;
+      finishFlip(commit);
+    }
+  };
+
+  const onPointerCancel = () => {
+    gestureRef.current = null;
+    if (flipRef.current) finishFlip(false);
+  };
+
+  // ---- 渲染 ----
+  const frame = flip != null ? frameFor(flipStyle, flip.p, flip.dir) : null;
+
+  const frontPageIdx =
+    flip != null ? (frame!.frontIsNew ? flip.to : flip.from) : null;
+  const backPageIdx =
+    flip != null ? (frame!.frontIsNew ? flip.from : flip.to) : null;
 
   return (
-    <div className="relative h-full">
-      <style>{ANIMATION_CSS}</style>
+    <div
+      data-testid="paginate-root"
+      ref={containerRef}
+      className={`relative h-full overflow-hidden touch-none select-none ${className}`}
+      style={{ ...style, ...(frame?.stage ?? {}) }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
+    >
+      {/* 静态层：无翻页进行时显示当前页 */}
+      {flip == null && pages[safePage] && (
+        <div
+          className="paginate-layer paginate-layer-front"
+          dangerouslySetInnerHTML={{ __html: pages[safePage].join("") }}
+        />
+      )}
 
-      <div
-        ref={containerRef}
-        className={`h-full overflow-hidden ${className} ${
-          isSimulate && animating ? "paginate-stage" : ""
-        }`}
-        style={{ ...style, position: "relative" }}
-      >
-        {/* ---- simulate：3D 翻书 ---- */}
-        {isSimulate && (
-          <SimulateFlip
-            pages={pages}
-            flipDir={flipDir}
-            renderPage={renderPage}
-            prevRenderPage={prevRenderPage}
-            animating={animating}
-            onAnimationEnd={onAnimationEnd}
-          />
-        )}
+      {/* 翻页双层 */}
+      {flip != null && backPageIdx != null && pages[backPageIdx] && (
+        <div
+          ref={backRef}
+          className="paginate-layer paginate-layer-back"
+          dangerouslySetInnerHTML={{ __html: pages[backPageIdx].join("") }}
+        />
+      )}
+      {flip != null && flipStyle === "simulate" && (
+        <div className="paginate-spine" />
+      )}
+      {flip != null && frontPageIdx != null && pages[frontPageIdx] && (
+        <div
+          ref={frontRef}
+          className="paginate-layer paginate-layer-front"
+          dangerouslySetInnerHTML={{ __html: pages[frontPageIdx].join("") }}
+        />
+      )}
 
-        {/* ---- cover：新页从右滑入覆盖 ---- */}
-        {(isCover || isSlide || isVertical) && (
-          <NormalFlip
-            pages={pages}
-            flipStyle={flipStyle}
-            flipDir={flipDir}
-            renderPage={renderPage}
-            prevRenderPage={prevRenderPage}
-            animating={animating}
-            onAnimationEnd={onAnimationEnd}
-          />
-        )}
-
-        {/* 静态兜底 */}
-        {!animating && pages[safePage] && (
-          <div
-            className="paginate-page-static"
-            dangerouslySetInnerHTML={{
-              __html: pages[safePage].join(""),
-            }}
-          />
-        )}
-      </div>
-
+      {/* 页码指示器 */}
       {total > 1 && (
-        <>
-          <ClickAreas
-            total={total}
-            safePage={safePage}
-            animating={animating}
-            onPrev={() => go(-1)}
-            onNext={() => go(1)}
-          />
-          <PageIndicator page={safePage} total={total} />
-        </>
+        <div className="paginate-indicator pointer-events-none absolute left-1/2 -translate-x-1/2 text-sm text-muted">
+          {safePage + 1} / {total}
+        </div>
       )}
     </div>
   );
 }
 
 // =====================================================================
-// 子组件
+// 工具
 // =====================================================================
 
-/** 仿真翻书：两层结构 */
-function SimulateFlip({
-  pages,
-  flipDir,
-  renderPage,
-  prevRenderPage,
-  animating,
-  onAnimationEnd,
-}: {
-  pages: string[][];
-  flipDir: FlipDir;
-  renderPage: number;
-  prevRenderPage: number | null;
-  animating: boolean;
-  onAnimationEnd: () => void;
-}) {
-  const backPageSrc =
-    flipDir === "next"
-      ? pages[renderPage]
-      : prevRenderPage != null
-        ? pages[prevRenderPage]
-        : null;
-  const frontPageSrc =
-    flipDir === "next"
-      ? prevRenderPage != null
-        ? pages[prevRenderPage]
-        : null
-      : pages[renderPage];
-
-  return (
-    <>
-      {backPageSrc && (
-        <div
-          className="paginate-page paginate-page-back"
-          dangerouslySetInnerHTML={{ __html: backPageSrc.join("") }}
-        />
-      )}
-      {animating && <div className="paginate-spine-shadow" />}
-      {frontPageSrc && (
-        <div
-          className={`paginate-page paginate-page-front ${
-            flipDir === "next" ? "paginate-flip-next" : "paginate-flip-prev"
-          }`}
-          onAnimationEnd={onAnimationEnd}
-          dangerouslySetInnerHTML={{ __html: frontPageSrc.join("") }}
-        />
-      )}
-    </>
-  );
+function applyFrame(
+  style: FlipStyle,
+  f: FlipState,
+  front: HTMLElement | null,
+  back: HTMLElement | null,
+) {
+  const frame = frameFor(style, f.p, f.dir);
+  if (front) Object.assign(front.style, frame.front);
+  if (back) Object.assign(back.style, frame.back);
 }
-
-/** cover / slide / vertical 共用：slide-out + slide-in 两层 */
-function NormalFlip({
-  pages,
-  flipStyle,
-  flipDir,
-  renderPage,
-  prevRenderPage,
-  animating,
-  onAnimationEnd,
-}: {
-  pages: string[][];
-  flipStyle: "cover" | "slide" | "vertical";
-  flipDir: FlipDir;
-  renderPage: number;
-  prevRenderPage: number | null;
-  animating: boolean;
-  onAnimationEnd: () => void;
-}) {
-  const isNext = flipDir === "next";
-
-  const isCover = flipStyle === "cover";
-  const isSlide = flipStyle === "slide";
-
-  // 类名：旧页滑出方向
-  let oldClass = "";
-  let newClass = "";
-  if (isSlide) {
-    oldClass = isNext ? "paginate-slide-out-l" : "paginate-slide-out-r";
-    newClass = isNext ? "paginate-slide-in-r" : "paginate-slide-in-l";
-  } else if (!isCover) {
-    // vertical
-    oldClass = isNext ? "paginate-vert-out-u" : "paginate-vert-out-d";
-    newClass = isNext ? "paginate-vert-in-d" : "paginate-vert-in-u";
-  }
-  // cover
-  const coverClass = isNext ? "paginate-cover-in" : "paginate-cover-out";
-
-  const oldSrc =
-    prevRenderPage != null ? pages[prevRenderPage] : null;
-  const newSrc = pages[renderPage];
-
-  return (
-    <>
-      {/* 旧页 */}
-      {animating && oldSrc && (
-        <div
-          className={`paginate-page-static ${
-            isCover ? "" : oldClass
-          } ${isCover ? "paginate-page-back" : ""}`}
-          onAnimationEnd={isCover ? undefined : onAnimationEnd}
-          dangerouslySetInnerHTML={{ __html: oldSrc.join("") }}
-        />
-      )}
-      {/* 新页 */}
-      {newSrc && (
-        <div
-          className={`paginate-page-static ${
-            animating
-              ? isCover
-                ? coverClass
-                : newClass
-              : ""
-          }`}
-          onAnimationEnd={animating && isCover ? onAnimationEnd : undefined}
-          dangerouslySetInnerHTML={{ __html: newSrc.join("") }}
-        />
-      )}
-    </>
-  );
-}
-
-function ClickAreas({
-  total,
-  safePage,
-  animating,
-  onPrev,
-  onNext,
-}: {
-  total: number;
-  safePage: number;
-  animating?: boolean;
-  onPrev: () => void;
-  onNext: () => void;
-}) {
-  return (
-    <>
-      <button
-        aria-label="上一页"
-        onClick={onPrev}
-        disabled={safePage === 0 || animating}
-        className="absolute left-0 top-0 h-full w-1/3 disabled:opacity-0"
-      />
-      <button
-        aria-label="下一页"
-        onClick={onNext}
-        disabled={safePage >= total - 1 || animating}
-        className="absolute right-0 top-0 h-full w-1/3 disabled:opacity-0"
-      />
-    </>
-  );
-}
-
-function PageIndicator({ page, total }: { page: number; total: number }) {
-  return (
-    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-xs text-muted">
-      {page + 1} / {total}
-    </div>
-  );
-}
-
-// =====================================================================
-// 工具函数
-// =====================================================================
 
 function splitBlocks(html: string): string[] {
   const doc = new DOMParser().parseFromString(html, "text/html");
@@ -388,60 +360,3 @@ function measureBlock(blockHtml: string, container: HTMLElement): number {
   container.removeChild(ghost);
   return h;
 }
-
-// =====================================================================
-// 动画 CSS（合在一起避免碎片化）
-// =====================================================================
-
-const ANIMATION_CSS = `
-  /* ---- 通用 ---- */
-  .paginate-page-static { position: absolute; inset: 0; overflow: hidden; }
-  .paginate-page { position: absolute; inset: 0; overflow: hidden; }
-
-  /* ==== simulate: 3D 翻书 ==== */
-  .paginate-stage { perspective: 1500px; }
-  .paginate-page-back { z-index: 1; }
-  .paginate-page-front {
-    z-index: 2;
-    transform-origin: left center;
-    backface-visibility: hidden;
-    box-shadow: 2px 0 12px rgba(0,0,0,0.08), 6px 0 24px rgba(0,0,0,0.04);
-  }
-  .paginate-spine-shadow {
-    position: absolute; inset: 0; z-index: 3; pointer-events: none;
-    background: linear-gradient(to right,
-      rgba(0,0,0,0.08) 0%,
-      rgba(0,0,0,0.03) 8px,
-      transparent 24px);
-  }
-  .paginate-flip-next { animation: flipAwayLeft 0.45s cubic-bezier(0.4,0.0,0.2,1) forwards; }
-  .paginate-flip-prev { animation: flipInLeft   0.45s cubic-bezier(0.4,0.0,0.2,1) forwards; }
-  @keyframes flipAwayLeft { 0%{transform:rotateY(0deg)} 100%{transform:rotateY(-180deg)} }
-  @keyframes flipInLeft    { 0%{transform:rotateY(-180deg)} 100%{transform:rotateY(0deg)} }
-
-  /* ==== cover: 覆盖 ==== */
-  .paginate-cover-in  { z-index: 2; animation: coverIn  0.3s ease forwards; }
-  .paginate-cover-out { z-index: 2; animation: coverOut 0.3s ease forwards; }
-  @keyframes coverIn  { from{transform:translateX(100%)} to{transform:translateX(0)} }
-  @keyframes coverOut { from{transform:translateX(0)}    to{transform:translateX(100%)} }
-
-  /* ==== slide: 平移 ==== */
-  .paginate-slide-out-l { animation: slideOutL 0.3s ease forwards; }
-  .paginate-slide-out-r { animation: slideOutR 0.3s ease forwards; }
-  .paginate-slide-in-l  { animation: slideInL  0.3s ease forwards; }
-  .paginate-slide-in-r  { animation: slideInR  0.3s ease forwards; }
-  @keyframes slideOutL { from{transform:translateX(0);opacity:1}  to{transform:translateX(-100%);opacity:0} }
-  @keyframes slideOutR { from{transform:translateX(0);opacity:1}  to{transform:translateX(100%);opacity:0} }
-  @keyframes slideInL  { from{transform:translateX(-100%);opacity:0} to{transform:translateX(0);opacity:1} }
-  @keyframes slideInR  { from{transform:translateX(100%);opacity:0}  to{transform:translateX(0);opacity:1} }
-
-  /* ==== vertical: 上下 ==== */
-  .paginate-vert-out-u { animation: vertOutU 0.35s ease forwards; }
-  .paginate-vert-out-d { animation: vertOutD 0.35s ease forwards; }
-  .paginate-vert-in-d  { animation: vertInD  0.35s ease forwards; }
-  .paginate-vert-in-u  { animation: vertInU  0.35s ease forwards; }
-  @keyframes vertOutU { from{transform:translateY(0);opacity:1}     to{transform:translateY(-40%);opacity:0} }
-  @keyframes vertOutD { from{transform:translateY(0);opacity:1}     to{transform:translateY(40%);opacity:0} }
-  @keyframes vertInD  { from{transform:translateY(-40%);opacity:0}  to{transform:translateY(0);opacity:1} }
-  @keyframes vertInU  { from{transform:translateY(40%);opacity:0}   to{transform:translateY(0);opacity:1} }
-`;
