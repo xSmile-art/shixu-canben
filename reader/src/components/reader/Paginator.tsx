@@ -451,8 +451,11 @@ function renderItems(
       return <div key={i} dangerouslySetInnerHTML={{ __html: html }} />;
     }
     // slice：内层先 translateY(-offset) 把 fromLine 之前的行顶出去，
-    // 外层用 height = 切片实际高度 + overflow hidden 截断 toLine 之后的内容。
-    // transform 不影响文档流高度，因此外层高度就是切片真实可视高度，不留空白。
+    // 外层用 height = 切片行高之和 + overflow hidden 截断 toLine 之后的内容。
+    // transform 不影响文档流高度，因此外层高度就是切片可视高度。
+    // 注意：分页按 lineHeights 累加预算，渲染用 rect.height（25px）+ top 对齐；
+    // line-height(32.3px) 与 rect.height 的 7.3px 差由相邻行自然衔接吸收，
+    // 不会在页底留下空白（这正是番茄小说式"填满每页"的对齐基础）。
     const lines = blockLines[item.index] ?? [];
     const from = Math.min(item.fromLine, lines.length);
     const to = Math.min(item.toLine, lines.length);
