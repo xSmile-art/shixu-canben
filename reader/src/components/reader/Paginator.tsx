@@ -8,7 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import type { FlipStyle } from "@app-types/settings";
-import { splitIntoPages } from "@lib/paginate";
+import { splitIntoPagesByLine, type PageItem, type LineBlock } from "@lib/paginate";
 import { zoneOf } from "@lib/tapZone";
 import { axisOf, frameFor, type FlipDir } from "@lib/flipStyle";
 import { tween, easeOutCubic } from "@lib/tween";
@@ -51,8 +51,10 @@ export function Paginator({
   style,
 }: PaginatorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [pages, setPages] = useState<string[][]>([]);
+  const [pages, setPages] = useState<PageItem[][]>([]);
   const blocks = useMemo(() => splitBlocks(html), [html]);
+  // 每个块的行高测量结果（用于切片渲染时按行裁切）
+  const blockLinesRef = useRef<number[][]>([]);
 
   const total = pages.length;
   const safePage = Math.min(Math.max(page, 0), Math.max(total - 1, 0));
@@ -88,9 +90,10 @@ export function Paginator({
       if (!widthChanged && !heightJump && last.w !== 0) return;
       lastSizeRef.current = { w, h };
       if (!h) return;
-      const heights = blocks.map((b) => measureBlock(b, el));
-      const idxPages = splitIntoPages(heights, h);
-      setPages(idxPages.map((arr) => arr.map((i) => blocks[i])));
+      // 逐块测量每行高度
+      const lineBlocks: LineBlock[] = blocks.map((b) => measureBlockLines(b, el));
+      blockLinesRef.current = lineBlocks.map((lb) => lb.lineHeights);
+      setPages(splitIntoPagesByLine(lineBlocks, h));
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -296,29 +299,24 @@ export function Paginator({
     >
       {/* 静态层：无翻页进行时显示当前页 */}
       {flip == null && pages[safePage] && (
-        <div
-          className="paginate-layer paginate-layer-front"
-          dangerouslySetInnerHTML={{ __html: pages[safePage].join("") }}
-        />
+        <div className="paginate-layer paginate-layer-front">
+          {renderItems(pages[safePage], blocks, blockLinesRef.current)}
+        </div>
       )}
 
       {/* 翻页双层 */}
       {flip != null && backPageIdx != null && pages[backPageIdx] && (
-        <div
-          ref={backRef}
-          className="paginate-layer paginate-layer-back"
-          dangerouslySetInnerHTML={{ __html: pages[backPageIdx].join("") }}
-        />
+        <div ref={backRef} className="paginate-layer paginate-layer-back">
+          {renderItems(pages[backPageIdx], blocks, blockLinesRef.current)}
+        </div>
       )}
       {flip != null && flipStyle === "simulate" && (
         <div className="paginate-spine" />
       )}
       {flip != null && frontPageIdx != null && pages[frontPageIdx] && (
-        <div
-          ref={frontRef}
-          className="paginate-layer paginate-layer-front"
-          dangerouslySetInnerHTML={{ __html: pages[frontPageIdx].join("") }}
-        />
+        <div ref={frontRef} className="paginate-layer paginate-layer-front">
+          {renderItems(pages[frontPageIdx], blocks, blockLinesRef.current)}
+        </div>
       )}
 
       {/* 页码指示器 */}
@@ -351,12 +349,93 @@ function splitBlocks(html: string): string[] {
   return Array.from(doc.body.children).map((el) => el.outerHTML);
 }
 
-function measureBlock(blockHtml: string, container: HTMLElement): number {
+/**
+ * 测量一个块的行高：把块渲染进隐藏 ghost，用 Range 逐行测量。
+ * 返回每行高度数组 + 块总高（含 margin）。
+ */
+function measureBlockLines(
+  blockHtml: string,
+  container: HTMLElement,
+): LineBlock {
   const ghost = document.createElement("div");
   ghost.style.cssText = `position:absolute;visibility:hidden;width:${container.clientWidth}px;`;
   ghost.innerHTML = blockHtml;
   container.appendChild(ghost);
-  const h = ghost.offsetHeight;
+  const el = ghost.firstElementChild as HTMLElement | null;
+  const totalHeight = ghost.offsetHeight;
+
+  const lineHeights: number[] = [];
+  if (el && typeof document.createRange === "function") {
+    const range = document.createRange();
+    // jsdom 的 Range 无 getClientRects，降级为整块一行
+    if (typeof range.getClientRects === "function") {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let lastTop: number | null = null;
+      let lineHeight = 0;
+      let node: Node | null;
+      // 逐文本节点按视觉行聚合
+      while ((node = walker.nextNode())) {
+        range.selectNodeContents(node);
+        const rects = range.getClientRects();
+        for (let i = 0; i < rects.length; i++) {
+          const r = rects[i];
+          const top = Math.round(r.top);
+          if (lastTop === null || Math.abs(top - lastTop) < 2) {
+            lineHeight = Math.max(lineHeight, r.height);
+            lastTop = lastTop ?? top;
+          } else {
+            lineHeights.push(lineHeight);
+            lineHeight = r.height;
+            lastTop = top;
+          }
+        }
+      }
+      if (lineHeight > 0) lineHeights.push(lineHeight);
+    }
+  }
+  // 没测到行（如图片块 / jsdom 环境）→ 整块一行
+  if (lineHeights.length === 0) lineHeights.push(totalHeight);
+
   container.removeChild(ghost);
-  return h;
+  // 加上段间距（margin-bottom），保证切片高度与整块一致
+  const marginBottom = el
+    ? parseFloat(getComputedStyle(el).marginBottom) || 0
+    : 0;
+  return { lineHeights, totalHeight: totalHeight + marginBottom };
+}
+
+/** 把一页的 PageItem 列表渲染成 React 节点 */
+function renderItems(
+  items: PageItem[],
+  blocks: string[],
+  blockLines: number[][],
+): React.ReactNode {
+  return items.map((item, i) => {
+    const html = blocks[item.index];
+    if (item.kind === "block") {
+      return (
+        <div key={i} dangerouslySetInnerHTML={{ __html: html }} />
+      );
+    }
+    // slice：按行高裁切 —— 用 maxHeight + overflow hidden 截断块的后半部分
+    const lines = blockLines[item.index] ?? [];
+    const from = item.fromLine;
+    const to = Math.min(item.toLine, lines.length);
+    const visible = lines.slice(from, to).reduce((a, b) => a + b, 0);
+    const offset = lines.slice(0, from).reduce((a, b) => a + b, 0);
+    return (
+      <div
+        key={i}
+        style={{
+          maxHeight: visible,
+          overflow: "hidden",
+          // 切片在页首时抵消前面的行高（把上半部分顶出去）
+          marginTop: from > 0 ? -offset : 0,
+          // 切片块的段间距只保留在非切片尾段；首页切片底部不出段间距
+          marginBottom: to < lines.length ? 0 : undefined,
+        }}
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    );
+  });
 }

@@ -64,6 +64,10 @@ body {
 .chapter-body p {
   margin-bottom: var(--reader-paragraph-spacing);
   text-indent: var(--reader-paragraph-indent);
+  /* 分页模式下允许段落跨页拆分，避免短页留白 */
+  break-inside: auto;
+  orphans: 2;
+  widows: 2;
 }
 .chapter-body.no-indent p {
   text-indent: 0;
