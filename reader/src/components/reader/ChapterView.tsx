@@ -4,7 +4,6 @@ import { DEFAULT_SETTINGS } from "@app-types/settings";
 import { LoadingError } from "./LoadingError";
 import { Paginator } from "./Paginator";
 
-// settings 可选：旧 App.jsx 过渡期不传也能编译/渲染（用默认值），后续任务起由 App 正式传入。
 interface ChapterViewProps {
   chapter: Chapter | null;
   status: LoadStatus;
@@ -13,7 +12,10 @@ interface ChapterViewProps {
   settings?: ReadingSettings;
   onRetry?: () => void;
   page?: number;
+  pendingPage?: number | "last" | null;
   onPageChange?: (page: number, total: number) => void;
+  onToggleMenu?: () => void;
+  onRequestChapter?: (dir: "prev" | "next", land: "first" | "last") => void;
 }
 
 const FONT_FAMILY_VAR: Record<ReadingSettings["fontFamily"], string> = {
@@ -30,47 +32,53 @@ export function ChapterView({
   settings = DEFAULT_SETTINGS,
   onRetry,
   page,
+  pendingPage = null,
   onPageChange,
+  onToggleMenu,
+  onRequestChapter,
 }: ChapterViewProps) {
+  const bodyStyle = {
+    fontSize: settings.fontSize,
+    lineHeight: settings.lineHeight,
+    letterSpacing: settings.letterSpacing,
+    fontFamily: FONT_FAMILY_VAR[settings.fontFamily],
+  };
+  const bodyClass = `chapter-body prose max-w-none ${
+    settings.paragraphIndent ? "" : "no-indent"
+  }`;
+
   return (
     <article
-      className="mx-auto px-4 text-fg"
+      className="mx-auto px-4 text-fg h-full flex flex-col"
       style={{ maxWidth: settings.contentWidth }}
     >
       <LoadingError status={status} error={error} onRetry={onRetry} />
       {status === "success" && chapter && (
         <>
           <h1
-            className="text-accent font-bold mb-6"
+            className="text-accent font-bold mb-4 shrink-0"
             style={{ fontSize: `calc(${settings.fontSize}px + 6px)` }}
           >
             第{chapter.num}章 {chapter.title}
           </h1>
           {settings.pageMode === "scroll" ? (
             <div
-              className={`chapter-body prose max-w-none ${settings.paragraphIndent ? "" : "no-indent"}`}
-              style={{
-                fontSize: settings.fontSize,
-                lineHeight: settings.lineHeight,
-                letterSpacing: settings.letterSpacing,
-                fontFamily: FONT_FAMILY_VAR[settings.fontFamily],
-              }}
+              className={bodyClass}
+              style={bodyStyle}
               dangerouslySetInnerHTML={{ __html: html }}
             />
           ) : (
-            <div style={{ height: "calc(100vh - 220px)" }}>
+            <div className="flex-1 min-h-0">
               <Paginator
                 html={html}
                 flipStyle={settings.flipStyle}
                 page={page ?? 0}
+                pendingPage={pendingPage}
                 onPageChange={onPageChange ?? (() => {})}
-                className={`chapter-body prose max-w-none ${settings.paragraphIndent ? "" : "no-indent"}`}
-                style={{
-                  fontSize: settings.fontSize,
-                  lineHeight: settings.lineHeight,
-                  letterSpacing: settings.letterSpacing,
-                  fontFamily: FONT_FAMILY_VAR[settings.fontFamily],
-                }}
+                onToggleMenu={onToggleMenu ?? (() => {})}
+                onRequestChapter={onRequestChapter ?? (() => {})}
+                className={bodyClass}
+                style={bodyStyle}
               />
             </div>
           )}
