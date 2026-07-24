@@ -108,3 +108,8 @@ body {
     transparent 24px
   );
 }
+
+/* 翻页页码指示器：避开 Home 指示条 */
+.paginate-indicator {
+  bottom: calc(8px + env(safe-area-inset-bottom));
+}

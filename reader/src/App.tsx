@@ -85,8 +85,10 @@ export default function App() {
     null,
   );
   const [sheetTab, setSheetTab] = useState<SettingsTabKey>("theme");
-  // 移动端底部栏显示/隐藏
-  const [mobileNavVisible, setMobileNavVisible] = useState(true);
+  // 移动端顶栏+底部导航联动显隐（true=菜单态，false=沉浸态）
+  const [chromeVisible, setChromeVisible] = useState(true);
+  // 跨章翻页落点：1=下一章第一页，"last"=上一章最后一页
+  const [pendingPage, setPendingPage] = useState<number | "last" | null>(null);
 
   const currentChapter = chapters.find((c) => c.num === currentNum) ?? null;
   const { html, status: chStatus, error: chError } = useChapter(currentChapter);
@@ -103,10 +105,11 @@ export default function App() {
   }, [listStatus, currentNum, chapters, progress.num]);
 
   const selectChapter = useCallback(
-    (num: number) => {
+    (num: number, land: "first" | "last" = "first") => {
       setCurrentNum(num);
       writeUrlNum(num);
       progress.save(num, 0);
+      setPendingPage(land === "last" ? "last" : 1);
       // 桌面端用 window 滚动，移动端用内部滚动容器
       window.scrollTo(0, 0);
       if (scrollRef.current) scrollRef.current.scrollTop = 0;
@@ -125,6 +128,17 @@ export default function App() {
   const goNext = useCallback(() => {
     if (hasNext) selectChapter(chapters[idx + 1].num);
   }, [hasNext, chapters, idx, selectChapter]);
+
+  // 翻页模式章节边界：末页再翻→下一章第一页；首页回翻→上一章最后一页
+  const handleRequestChapter = useCallback(
+    (dir: "prev" | "next", land: "first" | "last") => {
+      if (dir === "prev" && hasPrev)
+        selectChapter(chapters[idx - 1].num, land);
+      if (dir === "next" && hasNext)
+        selectChapter(chapters[idx + 1].num, land);
+    },
+    [hasPrev, hasNext, chapters, idx, selectChapter],
+  );
 
   // 键盘 ←/→ 翻章
   useEffect(() => {
@@ -177,10 +191,11 @@ export default function App() {
     }
   }, [chStatus, currentNum, progress]);
 
-  // 翻页模式：页码存 progress.scrollTop 字段
+  // 翻页模式：页码存 progress.scrollTop 字段；落定后清除跨章落点
   const handlePageChange = useCallback(
     (page: number, _total: number) => {
       progress.save(currentNum, page);
+      setPendingPage(null);
     },
     [progress, currentNum],
   );
@@ -195,22 +210,19 @@ export default function App() {
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
   const openSidebar = useCallback(() => setSidebarOpen(true), []);
 
-  // 移动端：点击正文区域切换底部栏显示/隐藏
-  const handleContentTap = useCallback(
-    (e: React.MouseEvent) => {
-      // 不拦截按钮、链接等交互元素的点击
-      const target = e.target as HTMLElement;
-      if (
-        target.closest("button") ||
-        target.closest("a") ||
-        target.closest("input") ||
-        target.closest("select")
-      )
-        return;
-      setMobileNavVisible((v) => !v);
-    },
-    [],
-  );
+  // 移动端：滚动模式点正文切换顶栏/底栏显隐
+  const handleContentTap = useCallback((e: React.MouseEvent) => {
+    // 不拦截按钮、链接等交互元素的点击
+    const target = e.target as HTMLElement;
+    if (
+      target.closest("button") ||
+      target.closest("a") ||
+      target.closest("input") ||
+      target.closest("select")
+    )
+      return;
+    setChromeVisible((v) => !v);
+  }, []);
 
   const activeTab: SettingsTabKey = toolbarPanel ?? "theme";
   const handleTabChange = useCallback(
@@ -238,8 +250,12 @@ export default function App() {
 
   return (
     <div className="h-dvh md:min-h-full bg-bg text-fg flex flex-col md:block overflow-hidden md:overflow-visible">
-      {/* 移动端顶栏 */}
-      <header className="md:hidden shrink-0 flex items-center justify-between px-4 py-2 bg-bg border-b border-border">
+      {/* 移动端顶栏（fixed + 联动显隐 + 安全区） */}
+      <header
+        className={`md:hidden fixed top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-2 bg-bg border-b border-border safe-top transition-transform duration-300 ${
+          chromeVisible ? "translate-y-0" : "-translate-y-full"
+        }`}
+      >
         <button
           aria-label="打开目录"
           onClick={openSidebar}
@@ -265,13 +281,11 @@ export default function App() {
           onSelect={selectChapter}
           onClose={closeSidebar}
         />
-        {/* 移动端：内部滚动；桌面端：自然流式滚动 */}
+        {/* 移动端：内部滚动；桌面端：自然流式滚动。翻页模式下不挂 onClick（Paginator 自处理三段点按） */}
         <main
           ref={scrollRef}
-          onClick={handleContentTap}
-          className={`flex-1 min-w-0 py-6 overflow-y-auto md:overflow-visible ${
-            mobileNavVisible ? "pb-14" : "pb-0"
-          } md:pb-6`}
+          onClick={settings.pageMode === "scroll" ? handleContentTap : undefined}
+          className="flex-1 min-w-0 py-6 overflow-y-auto md:overflow-visible"
         >
           {listStatus === "error" ? (
             <ChapterView
@@ -291,7 +305,10 @@ export default function App() {
               settings={settings}
               onRetry={retryList}
               page={settings.pageMode === "scroll" ? 0 : progress.scrollTop}
+              pendingPage={pendingPage}
               onPageChange={handlePageChange}
+              onToggleMenu={() => setChromeVisible((v) => !v)}
+              onRequestChapter={handleRequestChapter}
             />
           ) : (
             <div className="py-16 text-center text-muted">加载中…</div>
@@ -299,7 +316,7 @@ export default function App() {
           {currentChapter && chStatus === "success" && (
             <div
               style={{ maxWidth: settings.contentWidth }}
-              className="mx-auto px-4"
+              className="mx-auto px-4 hidden md:block"
             >
               <NavButtons
                 hasPrev={hasPrev}
@@ -322,10 +339,10 @@ export default function App() {
         {settingsPanelEl}
       </FloatingToolbar>
 
-      {/* 移动端底部图标导航栏：点击屏幕切换显示/隐藏 */}
+      {/* 移动端底部图标导航栏：点击屏幕切换显示/隐藏（与顶栏联动） */}
       <nav
-        className={`md:hidden fixed bottom-0 left-0 right-0 z-20 bg-bg border-t border-border transition-transform duration-300 ${
-          mobileNavVisible ? "translate-y-0" : "translate-y-full"
+        className={`md:hidden fixed bottom-0 left-0 right-0 z-20 bg-bg border-t border-border safe-bottom transition-transform duration-300 ${
+          chromeVisible ? "translate-y-0" : "translate-y-full"
         }`}
       >
         <div className="flex">
