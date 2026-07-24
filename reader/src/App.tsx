@@ -285,7 +285,9 @@ export default function App() {
         <main
           ref={scrollRef}
           onClick={settings.pageMode === "scroll" ? handleContentTap : undefined}
-          className="flex-1 min-w-0 py-6 overflow-y-auto md:overflow-visible"
+          className={`flex-1 min-w-0 overflow-y-auto md:overflow-visible ${
+            settings.pageMode === "scroll" ? "py-6" : "py-0"
+          }`}
         >
           {listStatus === "error" ? (
             <ChapterView

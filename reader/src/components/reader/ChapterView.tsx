@@ -49,14 +49,16 @@ export function ChapterView({
 
   return (
     <article
-      className="mx-auto px-4 text-fg h-full flex flex-col"
+      className={`mx-auto text-fg flex flex-col ${
+        settings.pageMode === "scroll" ? "px-4" : "h-full px-4"
+      }`}
       style={{ maxWidth: settings.contentWidth }}
     >
       <LoadingError status={status} error={error} onRetry={onRetry} />
       {status === "success" && chapter && (
         <>
           <h1
-            className="text-accent font-bold mb-4 shrink-0"
+            className="text-accent font-bold shrink-0 py-3"
             style={{ fontSize: `calc(${settings.fontSize}px + 6px)` }}
           >
             第{chapter.num}章 {chapter.title}
@@ -68,7 +70,7 @@ export function ChapterView({
               dangerouslySetInnerHTML={{ __html: html }}
             />
           ) : (
-            <div className="flex-1 min-h-0">
+            <div className="flex-1 min-h-0 pb-2">
               <Paginator
                 html={html}
                 flipStyle={settings.flipStyle}
