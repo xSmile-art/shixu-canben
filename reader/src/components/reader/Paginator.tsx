@@ -93,7 +93,21 @@ export function Paginator({
       // 逐块测量每行高度
       const lineBlocks: LineBlock[] = blocks.map((b) => measureBlockLines(b, el));
       blockLinesRef.current = lineBlocks.map((lb) => lb.lineHeights);
-      setPages(splitIntoPagesByLine(lineBlocks, h));
+      const result = splitIntoPagesByLine(lineBlocks, h);
+      setPages(result);
+      // 调试：输出分页结果与每页填充率
+      if (typeof window !== "undefined" && (window as any).__PAGINATE_DEBUG__) {
+        console.group(`[paginate] container ${w}x${h}, ${blocks.length} blocks → ${result.length} pages`);
+        result.forEach((page, pi) => {
+          const used = page.reduce((s, it) => {
+            if (it.kind === "block") return s + lineBlocks[it.index].totalHeight;
+            const lines = lineBlocks[it.index].lineHeights;
+            return s + lines.slice(it.fromLine, it.toLine).reduce((a, b) => a + b, 0);
+          }, 0);
+          console.log(`page ${pi}: used=${used.toFixed(0)}px / ${h}px (${((used / h) * 100).toFixed(0)}%)`, page);
+        });
+        console.groupEnd();
+      }
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -405,11 +419,14 @@ function measureBlockLines(
   if (lineHeights.length === 0) lineHeights.push(totalHeight);
 
   container.removeChild(ghost);
-  // 加上段间距（margin-bottom），保证切片高度与整块一致
+  // 段间距（margin-bottom）算入最后一行高度，避免切片时把间距算成独立一行导致空白
   const marginBottom = el
     ? parseFloat(getComputedStyle(el).marginBottom) || 0
     : 0;
-  return { lineHeights, totalHeight: totalHeight + marginBottom };
+  if (marginBottom > 0 && lineHeights.length > 0) {
+    lineHeights[lineHeights.length - 1] += marginBottom;
+  }
+  return { lineHeights, totalHeight };
 }
 
 /** 把一页的 PageItem 列表渲染成 React 节点 */
