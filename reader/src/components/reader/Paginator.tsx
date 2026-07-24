@@ -95,16 +95,26 @@ export function Paginator({
       blockLinesRef.current = lineBlocks.map((lb) => lb.lineHeights);
       const result = splitIntoPagesByLine(lineBlocks, h);
       setPages(result);
-      // 调试：输出分页结果与每页填充率
-      if (typeof window !== "undefined" && (window as any).__PAGINATE_DEBUG__) {
-        console.group(`[paginate] container ${w}x${h}, ${blocks.length} blocks → ${result.length} pages`);
+      // 调试：URL 带 ?paginate_debug=1 时输出分页结果与每页填充率
+      if (
+        typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).has("paginate_debug")
+      ) {
+        console.group(
+          `[paginate] container ${w}x${h}, ${blocks.length} blocks → ${result.length} pages`,
+        );
         result.forEach((page, pi) => {
           const used = page.reduce((s, it) => {
             if (it.kind === "block") return s + lineBlocks[it.index].totalHeight;
             const lines = lineBlocks[it.index].lineHeights;
-            return s + lines.slice(it.fromLine, it.toLine).reduce((a, b) => a + b, 0);
+            return (
+              s + lines.slice(it.fromLine, it.toLine).reduce((a, b) => a + b, 0)
+            );
           }, 0);
-          console.log(`page ${pi}: used=${used.toFixed(0)}px / ${h}px (${((used / h) * 100).toFixed(0)}%)`, page);
+          console.log(
+            `page ${pi}: used=${used.toFixed(0)}px / ${h}px (${((used / h) * 100).toFixed(0)}%)`,
+            page,
+          );
         });
         console.groupEnd();
       }
