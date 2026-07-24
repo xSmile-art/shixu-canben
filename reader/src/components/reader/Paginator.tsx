@@ -352,6 +352,10 @@ function splitBlocks(html: string): string[] {
 /**
  * 测量一个块的行高：把块渲染进隐藏 ghost，用 Range 逐行测量。
  * 返回每行高度数组 + 块总高（含 margin）。
+ *
+ * 注意：lineHeights 记录每行距块顶部的累计偏移，渲染切片时用
+ * transform: translateY(-offset) 把 fromLine 之前的内容顶出可视区，
+ * 用 maxHeight = 切片实际高度 截断 toLine 之后的内容，保证按行对齐不切割文字。
  */
 function measureBlockLines(
   blockHtml: string,
@@ -370,27 +374,31 @@ function measureBlockLines(
     // jsdom 的 Range 无 getClientRects，降级为整块一行
     if (typeof range.getClientRects === "function") {
       const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-      let lastTop: number | null = null;
-      let lineHeight = 0;
+      // 按行的 top 坐标聚合（同一视觉行可能跨多个 rect）
+      const rows = new Map<number, number>(); // top -> height
       let node: Node | null;
-      // 逐文本节点按视觉行聚合
       while ((node = walker.nextNode())) {
         range.selectNodeContents(node);
         const rects = range.getClientRects();
         for (let i = 0; i < rects.length; i++) {
           const r = rects[i];
+          if (r.height === 0) continue;
           const top = Math.round(r.top);
-          if (lastTop === null || Math.abs(top - lastTop) < 2) {
-            lineHeight = Math.max(lineHeight, r.height);
-            lastTop = lastTop ?? top;
-          } else {
-            lineHeights.push(lineHeight);
-            lineHeight = r.height;
-            lastTop = top;
+          // 容差 2px 内视为同一行
+          let matched = false;
+          for (const [t, h] of rows) {
+            if (Math.abs(t - top) <= 2) {
+              rows.set(t, Math.max(h, r.height));
+              matched = true;
+              break;
+            }
           }
+          if (!matched) rows.set(top, r.height);
         }
       }
-      if (lineHeight > 0) lineHeights.push(lineHeight);
+      // 按 top 排序得到行高序列
+      const sorted = Array.from(rows.entries()).sort((a, b) => a[0] - b[0]);
+      for (const [, h] of sorted) lineHeights.push(h);
     }
   }
   // 没测到行（如图片块 / jsdom 环境）→ 整块一行
@@ -413,13 +421,12 @@ function renderItems(
   return items.map((item, i) => {
     const html = blocks[item.index];
     if (item.kind === "block") {
-      return (
-        <div key={i} dangerouslySetInnerHTML={{ __html: html }} />
-      );
+      return <div key={i} dangerouslySetInnerHTML={{ __html: html }} />;
     }
-    // slice：按行高裁切 —— 用 maxHeight + overflow hidden 截断块的后半部分
+    // slice：用 maxHeight 截断 toLine 之后的内容；fromLine > 0 时用负 marginTop
+    // 把前面的行顶出可视区。两者都按测量行高对齐，避免切割文字。
     const lines = blockLines[item.index] ?? [];
-    const from = item.fromLine;
+    const from = Math.min(item.fromLine, lines.length);
     const to = Math.min(item.toLine, lines.length);
     const visible = lines.slice(from, to).reduce((a, b) => a + b, 0);
     const offset = lines.slice(0, from).reduce((a, b) => a + b, 0);
@@ -427,11 +434,10 @@ function renderItems(
       <div
         key={i}
         style={{
-          maxHeight: visible,
+          maxHeight: Math.ceil(visible),
           overflow: "hidden",
-          // 切片在页首时抵消前面的行高（把上半部分顶出去）
-          marginTop: from > 0 ? -offset : 0,
-          // 切片块的段间距只保留在非切片尾段；首页切片底部不出段间距
+          marginTop: from > 0 ? -Math.ceil(offset) : 0,
+          // 非末段切片底部不出段间距
           marginBottom: to < lines.length ? 0 : undefined,
         }}
         dangerouslySetInnerHTML={{ __html: html }}
