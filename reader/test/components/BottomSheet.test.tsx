@@ -32,4 +32,17 @@ describe("BottomSheet", () => {
     fireEvent.click(container.querySelector('[data-testid="sheet-overlay"]')!);
     expect(onClose).toHaveBeenCalled();
   });
+
+  it("具备 dialog 语义并支持 Escape 关闭", () => {
+    const onClose = vi.fn();
+    render(
+      <BottomSheet open title="设置" onClose={onClose}>
+        <button>操作</button>
+      </BottomSheet>,
+    );
+    const dialog = screen.getByRole("dialog", { name: "设置" });
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+  });
 });

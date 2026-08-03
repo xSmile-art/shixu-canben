@@ -8,11 +8,11 @@ interface LoadingErrorProps {
 
 export function LoadingError({ status, error, onRetry }: LoadingErrorProps) {
   if (status === "loading") {
-    return <div className="py-16 text-center text-muted">加载中…</div>;
+    return <div role="status" aria-live="polite" className="py-16 text-center text-muted">加载中…</div>;
   }
   if (status === "error") {
     return (
-      <div className="py-16 text-center">
+      <div role="alert" className="py-16 text-center">
         <p className="text-fg mb-4">{error ?? "加载失败"}</p>
         {onRetry && (
           <button
