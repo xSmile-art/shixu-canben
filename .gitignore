@@ -24,6 +24,7 @@ ehthumbs.db
 tmp/
 **/.cache/
 .superpowers/
+.playwright-mcp/
 
 # ===== 临时与备份文件 =====
 *.tmp
