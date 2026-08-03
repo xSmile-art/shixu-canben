@@ -22,6 +22,7 @@ export interface PaginatorProps {
   onPageChange: (page: number, total: number) => void;
   onToggleMenu: () => void;
   onRequestChapter: (dir: "prev" | "next", land: "first" | "last") => void;
+  keyboardCommand?: { id: number; dir: FlipDir } | null;
   className?: string;
   style?: CSSProperties;
 }
@@ -47,6 +48,7 @@ export function Paginator({
   onPageChange,
   onToggleMenu,
   onRequestChapter,
+  keyboardCommand = null,
   className = "",
   style,
 }: PaginatorProps) {
@@ -191,6 +193,19 @@ export function Paginator({
     [safePage, startFlip, finishFlip],
   );
 
+  const requestPage = useCallback(
+    (dir: FlipDir) => {
+      const to = dir === "next" ? safePage + 1 : safePage - 1;
+      if (to >= 0 && to < total) tapFlip(dir);
+      else onRequestChapter(dir, dir === "next" ? "first" : "last");
+    },
+    [safePage, total, tapFlip, onRequestChapter],
+  );
+
+  useEffect(() => {
+    if (keyboardCommand) requestPage(keyboardCommand.dir);
+  }, [keyboardCommand, requestPage]);
+
   // ---- 手势 ----
   const gestureRef = useRef<{
     pointerId: number;
@@ -276,12 +291,7 @@ export function Paginator({
         return;
       }
       const dir: FlipDir = zone === "next" ? "next" : "prev";
-      const to = dir === "next" ? safePage + 1 : safePage - 1;
-      if (to >= 0 && to < total) {
-        tapFlip(dir);
-      } else {
-        onRequestChapter(dir, dir === "next" ? "first" : "last");
-      }
+      requestPage(dir);
       return;
     }
 

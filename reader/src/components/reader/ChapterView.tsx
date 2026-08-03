@@ -16,6 +16,7 @@ interface ChapterViewProps {
   onPageChange?: (page: number, total: number) => void;
   onToggleMenu?: () => void;
   onRequestChapter?: (dir: "prev" | "next", land: "first" | "last") => void;
+  keyboardCommand?: { id: number; dir: "prev" | "next" } | null;
 }
 
 const FONT_FAMILY_VAR: Record<ReadingSettings["fontFamily"], string> = {
@@ -36,6 +37,7 @@ export function ChapterView({
   onPageChange,
   onToggleMenu,
   onRequestChapter,
+  keyboardCommand = null,
 }: ChapterViewProps) {
   const bodyStyle = {
     fontSize: settings.fontSize,
@@ -79,6 +81,7 @@ export function ChapterView({
                 onPageChange={onPageChange ?? (() => {})}
                 onToggleMenu={onToggleMenu ?? (() => {})}
                 onRequestChapter={onRequestChapter ?? (() => {})}
+                keyboardCommand={keyboardCommand}
                 className={bodyClass}
                 style={bodyStyle}
               />
