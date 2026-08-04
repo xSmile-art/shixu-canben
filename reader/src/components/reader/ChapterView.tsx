@@ -52,7 +52,7 @@ export function ChapterView({
   return (
     <article
       className={`mx-auto text-fg flex flex-col ${
-        settings.pageMode === "scroll" ? "px-4" : "h-full px-4"
+        settings.pageMode === "scroll" ? "px-4" : "h-full md:h-dvh px-4"
       }`}
       style={{ maxWidth: settings.contentWidth }}
     >

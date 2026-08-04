@@ -57,6 +57,7 @@ export function Paginator({
   const blocks = useMemo(() => splitBlocks(html), [html]);
   // 每个块的行高测量结果（用于切片渲染时按行裁切）
   const blockLinesRef = useRef<number[][]>([]);
+  const blockOffsetsRef = useRef<number[][]>([]);
 
   const total = pages.length;
   const safePage = Math.min(Math.max(page, 0), Math.max(total - 1, 0));
@@ -95,6 +96,7 @@ export function Paginator({
       // 逐块测量每行高度
       const lineBlocks: LineBlock[] = blocks.map((b) => measureBlockLines(b, el));
       blockLinesRef.current = lineBlocks.map((lb) => lb.lineHeights);
+      blockOffsetsRef.current = lineBlocks.map((lb) => lb.lineOffsets ?? []);
       const result = splitIntoPagesByLine(lineBlocks, h);
       setPages(result);
       // 调试：URL 带 ?paginate_debug=1 时输出分页结果与每页填充率
@@ -161,11 +163,14 @@ export function Paginator({
           tweenCancelRef.current = null;
           flipRef.current = null;
           setFlip(null);
-          if (commit) onPageChange(f.to, total);
+          if (commit) {
+            if (f.to >= 0 && f.to < total) onPageChange(f.to, total);
+            else onRequestChapter(f.dir, f.dir === "next" ? "first" : "last");
+          }
         },
       );
     },
-    [onPageChange, setP, total],
+    [onPageChange, onRequestChapter, setP, total],
   );
 
   const startFlip = useCallback(
@@ -187,19 +192,30 @@ export function Paginator({
     (dir: FlipDir) => {
       if (flipRef.current) return; // 动画中忽略 tap
       const to = dir === "next" ? safePage + 1 : safePage - 1;
+      if (flipStyle === "none") {
+        if (to >= 0 && to < total) onPageChange(to, total);
+        else onRequestChapter(dir, dir === "next" ? "first" : "last");
+        return;
+      }
       startFlip(dir, safePage, to, 0);
       requestAnimationFrame(() => finishFlip(true));
     },
-    [safePage, startFlip, finishFlip],
+    [
+      safePage,
+      startFlip,
+      finishFlip,
+      flipStyle,
+      onPageChange,
+      onRequestChapter,
+      total,
+    ],
   );
 
   const requestPage = useCallback(
     (dir: FlipDir) => {
-      const to = dir === "next" ? safePage + 1 : safePage - 1;
-      if (to >= 0 && to < total) tapFlip(dir);
-      else onRequestChapter(dir, dir === "next" ? "first" : "last");
+      tapFlip(dir);
     },
-    [safePage, total, tapFlip, onRequestChapter],
+    [tapFlip],
   );
 
   useEffect(() => {
@@ -212,7 +228,7 @@ export function Paginator({
     startX: number;
     startY: number;
     startT: number;
-    mode: "pending" | "tap" | "pan";
+    mode: "pending" | "cancelled" | "pan";
     dir: FlipDir | null;
   } | null>(null);
 
@@ -220,6 +236,12 @@ export function Paginator({
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (
+      (e.target as HTMLElement).closest(
+        "button, a, input, select, textarea, [role='button'], [data-reader-interactive]",
+      )
+    ) return;
+    if (flipRef.current) return;
     if (gestureRef.current) return; // 单指
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     gestureRef.current = {
@@ -228,7 +250,7 @@ export function Paginator({
       startY: e.clientY,
       startT: Date.now(),
       mode: "pending",
-      dir: flipRef.current?.dir ?? null,
+      dir: null,
     };
   };
 
@@ -243,17 +265,17 @@ export function Paginator({
     if (g.mode === "pending") {
       if (dist < TAP_MAX_DIST) return;
       if (!axis) {
-        g.mode = "tap"; // none：不跟手
+        g.mode = "cancelled";
         return;
       }
       const primary = axis === "x" ? dx : dy;
-      const dir: FlipDir = primary < 0 ? "next" : "prev";
-      const to = dir === "next" ? safePage + 1 : safePage - 1;
-      const inRange = to >= 0 && to < total;
-      if (!inRange && !flipRef.current) {
-        g.mode = "tap"; // 边界不跟手
+      const secondary = axis === "x" ? dy : dx;
+      if (Math.abs(primary) <= Math.abs(secondary)) {
+        g.mode = "cancelled";
         return;
       }
+      const dir: FlipDir = primary < 0 ? "next" : "prev";
+      const to = dir === "next" ? safePage + 1 : safePage - 1;
       g.mode = "pan";
       g.dir = dir;
       if (!flipRef.current) startFlip(dir, safePage, to, 0);
@@ -275,6 +297,7 @@ export function Paginator({
     const g = gestureRef.current;
     if (!g || g.pointerId !== e.pointerId) return;
     gestureRef.current = null;
+    e.preventDefault();
     const dt = Date.now() - g.startT;
     const dx = e.clientX - g.startX;
     const dy = e.clientY - g.startY;
@@ -323,6 +346,8 @@ export function Paginator({
   return (
     <div
       data-testid="paginate-root"
+      data-flip-style={flip?.dir ? flipStyle : undefined}
+      data-flip-dir={flip?.dir}
       ref={containerRef}
       className={`relative h-full overflow-hidden touch-none select-none ${className}`}
       style={{ ...style, ...(frame?.stage ?? {}) }}
@@ -334,22 +359,39 @@ export function Paginator({
       {/* 静态层：无翻页进行时显示当前页 */}
       {flip == null && pages[safePage] && (
         <div className="paginate-layer paginate-layer-front">
-          {renderItems(pages[safePage], blocks, blockLinesRef.current)}
+          {renderItems(
+            pages[safePage],
+            blocks,
+            blockLinesRef.current,
+            blockOffsetsRef.current,
+          )}
         </div>
       )}
 
       {/* 翻页双层 */}
-      {flip != null && backPageIdx != null && pages[backPageIdx] && (
+      {flip != null && backPageIdx != null && (
         <div ref={backRef} className="paginate-layer paginate-layer-back">
-          {renderItems(pages[backPageIdx], blocks, blockLinesRef.current)}
+          {pages[backPageIdx] &&
+            renderItems(
+              pages[backPageIdx],
+              blocks,
+              blockLinesRef.current,
+              blockOffsetsRef.current,
+            )}
         </div>
       )}
       {flip != null && flipStyle === "simulate" && (
         <div className="paginate-spine" />
       )}
-      {flip != null && frontPageIdx != null && pages[frontPageIdx] && (
+      {flip != null && frontPageIdx != null && (
         <div ref={frontRef} className="paginate-layer paginate-layer-front">
-          {renderItems(pages[frontPageIdx], blocks, blockLinesRef.current)}
+          {pages[frontPageIdx] &&
+            renderItems(
+              pages[frontPageIdx],
+              blocks,
+              blockLinesRef.current,
+              blockOffsetsRef.current,
+            )}
         </div>
       )}
 
@@ -376,6 +418,19 @@ function applyFrame(
   const frame = frameFor(style, f.p, f.dir);
   if (front) Object.assign(front.style, frame.front);
   if (back) Object.assign(back.style, frame.back);
+  if (style === "simulate" && front) {
+    const stage = front.parentElement;
+    const readingArea = stage?.closest("main");
+    if (stage && readingArea) {
+      const stageRect = stage.getBoundingClientRect();
+      const areaRect = readingArea.getBoundingClientRect();
+      const x = f.dir === "next"
+        ? areaRect.left - stageRect.left
+        : areaRect.right - stageRect.left;
+      front.style.transformOrigin = `${x}px center`;
+      stage.style.setProperty("--paginate-spine-x", `${x}px`);
+    }
+  }
 }
 
 function splitBlocks(html: string): string[] {
@@ -396,11 +451,11 @@ function measureBlockLines(
   container: HTMLElement,
 ): LineBlock {
   const ghost = document.createElement("div");
-  ghost.style.cssText = `position:absolute;visibility:hidden;width:${container.clientWidth}px;`;
+  ghost.style.cssText = `position:absolute;visibility:hidden;width:${container.clientWidth}px;display:flow-root;`;
   ghost.innerHTML = blockHtml;
   container.appendChild(ghost);
   const el = ghost.firstElementChild as HTMLElement | null;
-  const totalHeight = ghost.offsetHeight;
+  const totalHeight = ghost.offsetHeight || ghost.getBoundingClientRect().height;
 
   const lineHeights: number[] = [];
   if (el && typeof document.createRange === "function") {
@@ -409,7 +464,7 @@ function measureBlockLines(
     if (typeof range.getClientRects === "function") {
       const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
       // 按行的 top 坐标聚合（同一视觉行可能跨多个 rect）
-      const rows = new Map<number, number>(); // top -> height
+      const rows = new Map<number, { top: number; height: number }>();
       let node: Node | null;
       while ((node = walker.nextNode())) {
         range.selectNodeContents(node);
@@ -420,33 +475,53 @@ function measureBlockLines(
           const top = Math.round(r.top);
           // 容差 2px 内视为同一行
           let matched = false;
-          for (const [t, h] of rows) {
+          for (const [t, row] of rows) {
             if (Math.abs(t - top) <= 2) {
-              rows.set(t, Math.max(h, r.height));
+              rows.set(t, {
+                top: Math.min(row.top, r.top),
+                height: Math.max(row.height, r.height),
+              });
               matched = true;
               break;
             }
           }
-          if (!matched) rows.set(top, r.height);
+          if (!matched) rows.set(top, { top: r.top, height: r.height });
         }
       }
       // 按 top 排序得到行高序列
-      const sorted = Array.from(rows.entries()).sort((a, b) => a[0] - b[0]);
-      for (const [, h] of sorted) lineHeights.push(h);
+      const sorted = Array.from(rows.values()).sort((a, b) => a.top - b.top);
+      const ghostTop = ghost.getBoundingClientRect().top;
+      const boundaries = [0];
+      for (let i = 1; i < sorted.length; i++) {
+        const previousBottom = sorted[i - 1].top + sorted[i - 1].height;
+        const boundary = previousBottom <= sorted[i].top
+          ? (previousBottom + sorted[i].top) / 2
+          : (sorted[i - 1].top + sorted[i].top) / 2;
+        boundaries.push(Math.max(boundaries[i - 1], boundary - ghostTop));
+      }
+      boundaries.push(totalHeight);
+      for (let i = 0; i < sorted.length; i++) {
+        lineHeights.push(Math.max(0, boundaries[i + 1] - boundaries[i]));
+      }
+      (ghost as HTMLElement & { __lineOffsets?: number[] }).__lineOffsets =
+        boundaries;
     }
   }
   // 没测到行（如图片块 / jsdom 环境）→ 整块一行
   if (lineHeights.length === 0) lineHeights.push(totalHeight);
 
+  const measuredOffsets = (
+    ghost as HTMLElement & { __lineOffsets?: number[] }
+  ).__lineOffsets;
   container.removeChild(ghost);
-  // 段间距（margin-bottom）算入最后一行高度，避免切片时把间距算成独立一行导致空白
-  const marginBottom = el
-    ? parseFloat(getComputedStyle(el).marginBottom) || 0
-    : 0;
-  if (marginBottom > 0 && lineHeights.length > 0) {
-    lineHeights[lineHeights.length - 1] += marginBottom;
-  }
-  return { lineHeights, totalHeight };
+  const lineOffsets =
+    measuredOffsets?.length === lineHeights.length + 1
+      ? measuredOffsets
+      : lineHeights.reduce<number[]>(
+          (acc, height) => [...acc, acc[acc.length - 1] + height],
+          [0],
+        );
+  return { lineHeights, lineOffsets, totalHeight };
 }
 
 /** 把一页的 PageItem 列表渲染成 React 节点 */
@@ -454,11 +529,18 @@ function renderItems(
   items: PageItem[],
   blocks: string[],
   blockLines: number[][],
+  blockOffsets: number[][],
 ): React.ReactNode {
   return items.map((item, i) => {
     const html = blocks[item.index];
     if (item.kind === "block") {
-      return <div key={i} dangerouslySetInnerHTML={{ __html: html }} />;
+      return (
+        <div
+          key={i}
+          style={{ display: "flow-root" }}
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      );
     }
     // slice：内层先 translateY(-offset) 把 fromLine 之前的行顶出去，
     // 外层用 height = 切片行高之和 + overflow hidden 截断 toLine 之后的内容。
@@ -467,10 +549,14 @@ function renderItems(
     // line-height(32.3px) 与 rect.height 的 7.3px 差由相邻行自然衔接吸收，
     // 不会在页底留下空白（这正是番茄小说式"填满每页"的对齐基础）。
     const lines = blockLines[item.index] ?? [];
+    const offsets = blockOffsets[item.index] ?? [];
     const from = Math.min(item.fromLine, lines.length);
     const to = Math.min(item.toLine, lines.length);
-    const visible = lines.slice(from, to).reduce((a, b) => a + b, 0);
-    const offset = lines.slice(0, from).reduce((a, b) => a + b, 0);
+    const fallbackOffset = lines.slice(0, from).reduce((a, b) => a + b, 0);
+    const offset = offsets[from] ?? fallbackOffset;
+    const visible =
+      (offsets[to] ??
+        offset + lines.slice(from, to).reduce((a, b) => a + b, 0)) - offset;
     return (
       <div
         key={i}
@@ -482,7 +568,10 @@ function renderItems(
         }}
       >
         <div
-          style={{ transform: from > 0 ? `translateY(${-offset}px)` : undefined }}
+          style={{
+            display: "flow-root",
+            transform: from > 0 ? `translateY(${-offset}px)` : undefined,
+          }}
           dangerouslySetInnerHTML={{ __html: html }}
         />
       </div>
