@@ -9,7 +9,7 @@ const NOVELS_PREFIX = "novels/时序残本/正文";
 const RAW_BASE = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}`;
 
 export function buildFileName({ num, title }: Chapter): string {
-  return `第${num}章-${title}.md`;
+  return `第${String(num).padStart(3, "0")}章-${title}.md`;
 }
 
 export function buildChapterUrl(chapter: Chapter): string {

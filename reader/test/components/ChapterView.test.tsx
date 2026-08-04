@@ -94,6 +94,7 @@ describe("ChapterView", () => {
       />,
     );
     expect(screen.getByTestId("paginate-root")).toBeInTheDocument();
+    expect(screen.getByRole("article").className).toContain("md:h-dvh");
     vi.restoreAllMocks();
   });
 

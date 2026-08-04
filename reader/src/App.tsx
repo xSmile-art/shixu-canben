@@ -126,7 +126,7 @@ export default function App() {
       setCurrentNum(num);
       if (historyMode !== "none") writeUrlNum(num, historyMode);
       saveCurrentChapter(num);
-      setPendingPage(land === "last" ? "last" : 1);
+      setPendingPage(land === "last" ? "last" : 0);
       // 桌面端用 window 滚动，移动端用内部滚动容器
       window.scrollTo(0, 0);
       if (scrollRef.current) scrollRef.current.scrollTop = 0;

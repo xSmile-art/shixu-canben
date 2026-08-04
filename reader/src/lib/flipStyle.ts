@@ -84,11 +84,11 @@ export function frameFor(style: FlipStyle, p: number, dir: FlipDir): FlipFrame {
       // 3D 翻书：front 从 rotateY(0) → rotateY(-180)（next）
       const deg = isNext ? -180 * p : -180 + 180 * p;
       return {
-        stage: { perspective: "1500px" },
-        back: { zIndex: 1 },
+        stage: { perspective: "1500px", transformStyle: "preserve-3d" },
+        back: { zIndex: 1, transform: "translateZ(0)" },
         front: {
           transform: `rotateY(${deg.toFixed(2)}deg)`,
-          transformOrigin: "left center",
+          transformOrigin: isNext ? "left center" : "right center",
           backfaceVisibility: "hidden",
           zIndex: 2,
         },

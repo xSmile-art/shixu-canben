@@ -44,6 +44,10 @@ describe("frameFor", () => {
     expect(f0.stage?.perspective).toBe("1500px");
     const f1 = frameFor("simulate", 1, "next");
     expect(f1.front.transform).toBe("rotateY(-180.00deg)");
+    expect(f1.stage?.transformStyle).toBe("preserve-3d");
+    expect(frameFor("simulate", 0.5, "prev").front.transformOrigin).toBe(
+      "right center",
+    );
   });
 
   it("none：不做双层帧（front/back 均无 transform）", () => {

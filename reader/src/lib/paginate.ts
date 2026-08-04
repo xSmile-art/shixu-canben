@@ -41,6 +41,8 @@ export type PageItem =
 export interface LineBlock {
   /** 每行的实际高度 */
   lineHeights: number[];
+  /** 真实块坐标中的逐行切片边界（长度为行数 + 1）。 */
+  lineOffsets?: number[];
   /** 块总高（含 margin，用于整块判断） */
   totalHeight: number;
 }
