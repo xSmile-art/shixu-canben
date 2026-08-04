@@ -22,6 +22,19 @@ describe("useChapters", () => {
     expect(result.current.chapters).toEqual(mockIndex);
   });
 
+  it("将仓库索引中的补零字符串章号规范化为数字", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => [{ num: "001", title: "开始" }],
+      })),
+    );
+    const { result } = renderHook(() => useChapters());
+    await waitFor(() => expect(result.current.status).toBe("success"));
+    expect(result.current.chapters).toEqual([{ num: 1, title: "开始" }]);
+  });
+
   it("HTTP 错误时进入 error 态", async () => {
     vi.stubGlobal(
       "fetch",

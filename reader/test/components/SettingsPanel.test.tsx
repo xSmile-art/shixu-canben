@@ -79,7 +79,7 @@ describe("SettingsPanel", () => {
         onTabChange={onTabChange}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "排版" }));
+    fireEvent.click(screen.getByRole("tab", { name: "排版" }));
     expect(onTabChange).toHaveBeenCalledWith("typography");
   });
 });

@@ -12,6 +12,18 @@ export function applyTheme(theme: Theme): void {
   root.style.setProperty("--color-muted", theme.colors.muted);
   root.style.setProperty("--color-border", theme.colors.border);
   root.style.setProperty("--color-highlight", theme.colors.highlight);
+  const dark = isDark(theme.colors.bg);
+  root.style.colorScheme = dark ? "dark" : "light";
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute("content", theme.colors.bg);
+}
+
+function isDark(hex: string): boolean {
+  const value = hex.match(/^#([0-9a-f]{6})$/i)?.[1];
+  if (!value) return false;
+  const [r, g, b] = [0, 2, 4].map((i) => Number.parseInt(value.slice(i, i + 2), 16));
+  return (r * 299 + g * 587 + b * 114) / 1000 < 128;
 }
 
 export function saveTheme(theme: Theme): void {

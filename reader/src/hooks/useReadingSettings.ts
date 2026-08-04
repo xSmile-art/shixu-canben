@@ -25,7 +25,7 @@ const RANGES = {
   fontSize: [14, 24],
   lineHeight: [1.5, 2.5],
   letterSpacing: [0, 4],
-  paragraphSpacing: [0.5, 2],
+  paragraphSpacing: [0, 1.5],
   contentWidth: [600, 900],
   brightness: [0.3, 1.0],
 } as const;

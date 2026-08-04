@@ -81,4 +81,13 @@ describe("Tabs", () => {
     expect(onChange).toHaveBeenCalledWith("b");
     expect(screen.getByText("主题面板")).toBeInTheDocument();
   });
+
+  it("支持方向键切换 Tab", () => {
+    render(<Tabs tabs={twoTabs} />);
+    fireEvent.keyDown(screen.getByRole("tab", { name: "主题" }), {
+      key: "ArrowRight",
+    });
+    expect(screen.getByText("排版面板")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "排版" })).toHaveFocus();
+  });
 });
