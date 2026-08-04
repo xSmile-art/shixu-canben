@@ -4,7 +4,37 @@ import { renderMarkdown } from "@lib/markdown";
 import type { Chapter, LoadStatus } from "@app-types/chapter";
 
 // 模块级缓存：章号 -> HTML。同章多次挂载只 fetch 一次。
+const CACHE_LIMIT = 8;
 const cache = new Map<number, string>();
+
+function cacheSet(num: number, html: string): void {
+  cache.delete(num);
+  cache.set(num, html);
+  while (cache.size > CACHE_LIMIT) {
+    const oldest = cache.keys().next().value;
+    if (oldest === undefined) break;
+    cache.delete(oldest);
+  }
+}
+
+async function loadChapterHtml(chapter: Chapter, signal?: AbortSignal) {
+  const cached = cache.get(chapter.num);
+  if (cached != null) {
+    cache.delete(chapter.num);
+    cache.set(chapter.num, cached);
+    return cached;
+  }
+  const res = await fetch(buildChapterUrl(chapter), { signal });
+  if (!res.ok) throw new Error(`章节加载失败 (HTTP ${res.status})`);
+  const out = await renderMarkdown(await res.text());
+  cacheSet(chapter.num, out);
+  return out;
+}
+
+export function prefetchChapter(chapter: Chapter | null): void {
+  if (!chapter || cache.has(chapter.num)) return;
+  void loadChapterHtml(chapter).catch(() => {});
+}
 
 // 测试用：清空缓存
 export function __resetChapterCache(): void {
@@ -29,31 +59,20 @@ export function useChapter(chapter: Chapter | null) {
       setStatus("success");
       return;
     }
-    let cancelled = false;
+    const controller = new AbortController();
     setStatus("loading");
     setError(null);
-    fetch(buildChapterUrl(chapter!))
-      .then((res) => {
-        if (!res.ok) throw new Error(`章节加载失败 (HTTP ${res.status})`);
-        return res.text();
-      })
-      .then((md) => renderMarkdown(md))
+    loadChapterHtml(chapter!, controller.signal)
       .then((out) => {
-        cache.set(num, out);
-        if (!cancelled) {
-          setHtml(out);
-          setStatus("success");
-        }
+        setHtml(out);
+        setStatus("success");
       })
       .catch((e) => {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : "未知错误");
-          setStatus("error");
-        }
+        if (e instanceof DOMException && e.name === "AbortError") return;
+        setError(e instanceof Error ? e.message : "未知错误");
+        setStatus("error");
       });
-    return () => {
-      cancelled = true;
-    };
+    return () => controller.abort();
   }, [num]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { html, status, error };

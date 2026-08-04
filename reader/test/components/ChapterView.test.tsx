@@ -77,7 +77,7 @@ describe("ChapterView", () => {
     expect(screen.getByText("重试")).toBeInTheDocument();
   });
 
-  it("pageMode=paged 时渲染翻页按钮（Paginator）", () => {
+  it("pageMode=paged 时渲染 Paginator 根节点", () => {
     vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(100);
     vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(60);
     render(
@@ -86,16 +86,19 @@ describe("ChapterView", () => {
         status="success"
         error={null}
         html="<p>x</p><p>y</p>"
-        settings={{ ...DEFAULT_SETTINGS, pageMode: "paged", flipStyle: "simulate" }}
+        settings={{ ...DEFAULT_SETTINGS, pageMode: "paged", flipStyle: "slide" }}
         page={0}
         onPageChange={() => {}}
+        onToggleMenu={() => {}}
+        onRequestChapter={() => {}}
       />,
     );
-    expect(screen.getByLabelText("下一页")).toBeInTheDocument();
+    expect(screen.getByTestId("paginate-root")).toBeInTheDocument();
+    expect(screen.getByRole("article").className).toContain("md:h-dvh");
     vi.restoreAllMocks();
   });
 
-  it("pageMode=scroll 时渲染滚动正文（无翻页按钮）", () => {
+  it("scroll 模式不渲染 Paginator", () => {
     render(
       <ChapterView
         chapter={chapter}
@@ -105,6 +108,6 @@ describe("ChapterView", () => {
         settings={{ ...DEFAULT_SETTINGS, pageMode: "scroll" }}
       />,
     );
-    expect(screen.queryByLabelText("下一页")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("paginate-root")).not.toBeInTheDocument();
   });
 });

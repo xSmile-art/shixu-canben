@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useChapters } from "@hooks/useChapters";
-import { useChapter } from "@hooks/useChapter";
+import { useChapter, prefetchChapter } from "@hooks/useChapter";
 import { useReadingProgress } from "@hooks/useReadingProgress";
 import { useTheme } from "@hooks/useTheme";
 import { useReadingSettings } from "@hooks/useReadingSettings";
@@ -22,10 +22,10 @@ function readUrlNum(): number | null {
   const n = v ? Number(v) : NaN;
   return Number.isFinite(n) && n > 0 ? n : null;
 }
-function writeUrlNum(num: number): void {
+function writeUrlNum(num: number, mode: "push" | "replace" = "push"): void {
   const url = new URL(window.location.href);
   url.searchParams.set("ch", String(num));
-  window.history.replaceState(null, "", url);
+  window.history[mode === "push" ? "pushState" : "replaceState"](null, "", url);
 }
 
 // 移动端 BottomSheet 标题随 Tab 变化
@@ -68,7 +68,13 @@ export default function App() {
     error: listError,
     retry: retryList,
   } = useChapters();
-  const progress = useReadingProgress();
+  const {
+    currentChapter: savedChapter,
+    getPosition,
+    setCurrentChapter: saveCurrentChapter,
+    saveScroll,
+    savePage,
+  } = useReadingProgress();
   const { theme, setTheme, customizeColor } = useTheme();
   const {
     settings,
@@ -77,7 +83,7 @@ export default function App() {
   } = useReadingSettings();
 
   const [currentNum, setCurrentNum] = useState<number | null>(
-    () => readUrlNum() ?? progress.num,
+    () => readUrlNum() ?? savedChapter,
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toolbarPanel, setToolbarPanel] = useState<ToolbarPanel>(null);
@@ -85,8 +91,14 @@ export default function App() {
     null,
   );
   const [sheetTab, setSheetTab] = useState<SettingsTabKey>("theme");
-  // 移动端底部栏显示/隐藏
-  const [mobileNavVisible, setMobileNavVisible] = useState(true);
+  // 移动端顶栏+底部导航联动显隐（true=菜单态，false=沉浸态）
+  const [chromeVisible, setChromeVisible] = useState(true);
+  // 跨章翻页落点：1=下一章第一页，"last"=上一章最后一页
+  const [pendingPage, setPendingPage] = useState<number | "last" | null>(null);
+  const [keyboardCommand, setKeyboardCommand] = useState<{
+    id: number;
+    dir: "prev" | "next";
+  } | null>(null);
 
   const currentChapter = chapters.find((c) => c.num === currentNum) ?? null;
   const { html, status: chStatus, error: chError } = useChapter(currentChapter);
@@ -94,31 +106,58 @@ export default function App() {
   // 正文可滚动区域 ref（移动端内部滚动，桌面端 window 滚动）
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 索引就绪后兜底选章
+  // 索引就绪后校验 URL / 最近阅读章，并确保地址栏与状态一致。
   useEffect(() => {
-    if (listStatus === "success" && !currentNum && chapters.length) {
-      const target = chapters.find((c) => c.num === progress.num);
-      setCurrentNum(target ? target.num : chapters[0].num);
-    }
-  }, [listStatus, currentNum, chapters, progress.num]);
+    if (listStatus !== "success" || chapters.length === 0) return;
+    const target = chapters.find((c) => c.num === currentNum)
+      ?? chapters.find((c) => c.num === savedChapter)
+      ?? chapters[0];
+    if (currentNum !== target.num) setCurrentNum(target.num);
+    saveCurrentChapter(target.num);
+    if (readUrlNum() !== target.num) writeUrlNum(target.num, "replace");
+  }, [listStatus, currentNum, chapters, savedChapter, saveCurrentChapter]);
 
   const selectChapter = useCallback(
-    (num: number) => {
+    (
+      num: number,
+      land: "first" | "last" = "first",
+      historyMode: "push" | "replace" | "none" = "push",
+    ) => {
       setCurrentNum(num);
-      writeUrlNum(num);
-      progress.save(num, 0);
+      if (historyMode !== "none") writeUrlNum(num, historyMode);
+      saveCurrentChapter(num);
+      setPendingPage(land === "last" ? "last" : 0);
       // 桌面端用 window 滚动，移动端用内部滚动容器
       window.scrollTo(0, 0);
       if (scrollRef.current) scrollRef.current.scrollTop = 0;
       setSidebarOpen(false);
       setSheetPanel(null);
     },
-    [progress],
+    [saveCurrentChapter],
   );
+
+  // 浏览器前进/后退恢复章节，不创建新的历史记录。
+  useEffect(() => {
+    const onPopState = () => {
+      const num = readUrlNum();
+      if (num != null && chapters.some((chapter) => chapter.num === num)) {
+        setCurrentNum(num);
+        saveCurrentChapter(num);
+        setPendingPage(null);
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [chapters, saveCurrentChapter]);
 
   const idx = chapters.findIndex((c) => c.num === currentNum);
   const hasPrev = idx > 0;
   const hasNext = idx >= 0 && idx < chapters.length - 1;
+  useEffect(() => {
+    if (chStatus !== "success" || idx < 0) return;
+    prefetchChapter(chapters[idx + 1] ?? null);
+    prefetchChapter(chapters[idx - 1] ?? null);
+  }, [chStatus, chapters, idx]);
   const goPrev = useCallback(() => {
     if (hasPrev) selectChapter(chapters[idx - 1].num);
   }, [hasPrev, chapters, idx, selectChapter]);
@@ -126,15 +165,37 @@ export default function App() {
     if (hasNext) selectChapter(chapters[idx + 1].num);
   }, [hasNext, chapters, idx, selectChapter]);
 
+  // 翻页模式章节边界：末页再翻→下一章第一页；首页回翻→上一章最后一页
+  const handleRequestChapter = useCallback(
+    (dir: "prev" | "next", land: "first" | "last") => {
+      if (dir === "prev" && hasPrev)
+        selectChapter(chapters[idx - 1].num, land);
+      if (dir === "next" && hasNext)
+        selectChapter(chapters[idx + 1].num, land);
+    },
+    [hasPrev, hasNext, chapters, idx, selectChapter],
+  );
+
   // 键盘 ←/→ 翻章
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft") goPrev();
-      if (e.key === "ArrowRight") goNext();
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target?.closest(
+          "input, select, textarea, button, a, [contenteditable='true'], [role='slider']",
+        )
+      ) return;
+      const dir = e.key === "ArrowLeft" ? "prev" : "next";
+      if (settings.pageMode === "paged") {
+        e.preventDefault();
+        setKeyboardCommand({ id: Date.now(), dir });
+      } else if (dir === "prev") goPrev();
+      else goNext();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [goPrev, goNext]);
+  }, [goPrev, goNext, settings.pageMode]);
 
   // 滚动防抖存进度（桌面端 window 滚动 + 移动端内部滚动）
   const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -146,18 +207,18 @@ export default function App() {
       scrollTimer.current = setTimeout(() => {
         // 优先取移动端内部滚动位置，其次 window 滚动
         const top = scrollEl ? scrollEl.scrollTop : window.scrollY;
-        progress.save(currentNum, top);
+        if (currentNum != null) saveScroll(currentNum, top);
       }, 300);
     };
     // 监听内部滚动（移动端）
-    if (scrollEl) scrollEl.addEventListener("scroll", onScroll);
+    if (scrollEl) scrollEl.addEventListener("scroll", onScroll, { passive: true });
     // 同时监听 window 滚动（桌面端）
-    window.addEventListener("scroll", onScroll);
+    window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       if (scrollEl) scrollEl.removeEventListener("scroll", onScroll);
       window.removeEventListener("scroll", onScroll);
     };
-  }, [chStatus, currentNum, progress, settings.pageMode]);
+  }, [chStatus, currentNum, saveScroll, settings.pageMode]);
 
   // 进入恢复滚动位置（一次）
   const restored = useRef(false);
@@ -168,21 +229,23 @@ export default function App() {
     if (
       chStatus === "success" &&
       !restored.current &&
-      progress.num === currentNum &&
-      progress.scrollTop
+      savedChapter === currentNum &&
+      getPosition(currentNum).scrollOffset
     ) {
-      window.scrollTo(0, progress.scrollTop);
-      if (scrollRef.current) scrollRef.current.scrollTop = progress.scrollTop;
+      const offset = getPosition(currentNum).scrollOffset;
+      window.scrollTo(0, offset);
+      if (scrollRef.current) scrollRef.current.scrollTop = offset;
       restored.current = true;
     }
-  }, [chStatus, currentNum, progress]);
+  }, [chStatus, currentNum, savedChapter, getPosition]);
 
-  // 翻页模式：页码存 progress.scrollTop 字段
+  // 翻页模式：页码存 progress.scrollTop 字段；落定后清除跨章落点
   const handlePageChange = useCallback(
     (page: number, _total: number) => {
-      progress.save(currentNum, page);
+      if (currentNum != null) savePage(currentNum, page);
+      setPendingPage(null);
     },
-    [progress, currentNum],
+    [savePage, currentNum],
   );
 
   // 回到顶部（移动端用内部滚动，桌面端用 window）
@@ -195,22 +258,19 @@ export default function App() {
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
   const openSidebar = useCallback(() => setSidebarOpen(true), []);
 
-  // 移动端：点击正文区域切换底部栏显示/隐藏
-  const handleContentTap = useCallback(
-    (e: React.MouseEvent) => {
-      // 不拦截按钮、链接等交互元素的点击
-      const target = e.target as HTMLElement;
-      if (
-        target.closest("button") ||
-        target.closest("a") ||
-        target.closest("input") ||
-        target.closest("select")
-      )
-        return;
-      setMobileNavVisible((v) => !v);
-    },
-    [],
-  );
+  // 移动端：滚动模式点正文切换顶栏/底栏显隐
+  const handleContentTap = useCallback((e: React.MouseEvent) => {
+    // 不拦截按钮、链接等交互元素的点击
+    const target = e.target as HTMLElement;
+    if (
+      target.closest("button") ||
+      target.closest("a") ||
+      target.closest("input") ||
+      target.closest("select")
+    )
+      return;
+    setChromeVisible((v) => !v);
+  }, []);
 
   const activeTab: SettingsTabKey = toolbarPanel ?? "theme";
   const handleTabChange = useCallback(
@@ -238,8 +298,18 @@ export default function App() {
 
   return (
     <div className="h-dvh md:min-h-full bg-bg text-fg flex flex-col md:block overflow-hidden md:overflow-visible">
-      {/* 移动端顶栏 */}
-      <header className="md:hidden shrink-0 flex items-center justify-between px-4 py-2 bg-bg border-b border-border">
+      <a
+        href="#reader-main"
+        className="sr-only focus:not-sr-only fixed top-2 left-2 z-[100] bg-bg text-fg border border-accent rounded px-3 py-2"
+      >
+        跳到正文
+      </a>
+      {/* 移动端顶栏（fixed + 联动显隐 + 安全区） */}
+      <header
+        className={`md:hidden fixed top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-2 bg-bg border-b border-border safe-top transition-transform duration-300 ${
+          chromeVisible ? "translate-y-0" : "-translate-y-full"
+        }`}
+      >
         <button
           aria-label="打开目录"
           onClick={openSidebar}
@@ -265,13 +335,15 @@ export default function App() {
           onSelect={selectChapter}
           onClose={closeSidebar}
         />
-        {/* 移动端：内部滚动；桌面端：自然流式滚动 */}
+        {/* 移动端：内部滚动；桌面端：自然流式滚动。翻页模式下不挂 onClick（Paginator 自处理三段点按） */}
         <main
+          id="reader-main"
+          tabIndex={-1}
           ref={scrollRef}
-          onClick={handleContentTap}
-          className={`flex-1 min-w-0 py-6 overflow-y-auto md:overflow-visible ${
-            mobileNavVisible ? "pb-14" : "pb-0"
-          } md:pb-6`}
+          onClick={settings.pageMode === "scroll" ? handleContentTap : undefined}
+          className={`flex-1 min-w-0 overflow-y-auto md:overflow-visible ${
+            settings.pageMode === "scroll" ? "py-6" : "py-0"
+          }`}
         >
           {listStatus === "error" ? (
             <ChapterView
@@ -290,8 +362,16 @@ export default function App() {
               html={html}
               settings={settings}
               onRetry={retryList}
-              page={settings.pageMode === "scroll" ? 0 : progress.scrollTop}
+              page={
+                settings.pageMode === "scroll"
+                  ? 0
+                  : getPosition(currentNum).pageIndex
+              }
+              pendingPage={pendingPage}
               onPageChange={handlePageChange}
+              onToggleMenu={() => setChromeVisible((v) => !v)}
+              onRequestChapter={handleRequestChapter}
+              keyboardCommand={keyboardCommand}
             />
           ) : (
             <div className="py-16 text-center text-muted">加载中…</div>
@@ -299,7 +379,7 @@ export default function App() {
           {currentChapter && chStatus === "success" && (
             <div
               style={{ maxWidth: settings.contentWidth }}
-              className="mx-auto px-4"
+              className="mx-auto px-4 hidden md:block"
             >
               <NavButtons
                 hasPrev={hasPrev}
@@ -322,10 +402,10 @@ export default function App() {
         {settingsPanelEl}
       </FloatingToolbar>
 
-      {/* 移动端底部图标导航栏：点击屏幕切换显示/隐藏 */}
+      {/* 移动端底部图标导航栏：点击屏幕切换显示/隐藏（与顶栏联动） */}
       <nav
-        className={`md:hidden fixed bottom-0 left-0 right-0 z-20 bg-bg border-t border-border transition-transform duration-300 ${
-          mobileNavVisible ? "translate-y-0" : "translate-y-full"
+        className={`md:hidden fixed bottom-0 left-0 right-0 z-20 bg-bg border-t border-border safe-bottom transition-transform duration-300 ${
+          chromeVisible ? "translate-y-0" : "translate-y-full"
         }`}
       >
         <div className="flex">
@@ -359,8 +439,19 @@ export default function App() {
         <ul>
           {chapters.map((ch) => (
             <li key={ch.num}>
-              <button
-                onClick={() => selectChapter(ch.num)}
+              <a
+                href={`?ch=${ch.num}`}
+                onClick={(event) => {
+                  if (
+                    event.button !== 0 ||
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                  ) return;
+                  event.preventDefault();
+                  selectChapter(ch.num);
+                }}
                 className={`w-full text-left px-2 py-2 text-sm rounded ${
                   ch.num === currentNum
                     ? "bg-highlight text-accent"
@@ -368,7 +459,7 @@ export default function App() {
                 }`}
               >
                 第{ch.num}章 {ch.title}
-              </button>
+              </a>
             </li>
           ))}
         </ul>

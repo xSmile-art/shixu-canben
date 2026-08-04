@@ -22,8 +22,10 @@ describe("ChapterList", () => {
     render(
       <ChapterList chapters={chapters} currentNum={2} onSelect={() => {}} />,
     );
-    const activeBtn = screen.getByText(/雨夜/).closest("button")!;
-    expect(activeBtn.className).toMatch(/bg-highlight|text-accent/);
+    const activeLink = screen.getByRole("link", { name: /雨夜/ });
+    expect(activeLink.className).toMatch(/bg-highlight|text-accent/);
+    expect(activeLink).toHaveAttribute("aria-current", "page");
+    expect(activeLink).toHaveAttribute("href", "?ch=2");
   });
 
   it("点击章节触发 onSelect", () => {
