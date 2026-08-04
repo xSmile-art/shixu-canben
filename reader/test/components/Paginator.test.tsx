@@ -35,6 +35,18 @@ function tap(el: Element, x: number) {
   fireEvent.pointerUp(el, { clientX: x, clientY: 50, pointerId: 1 });
 }
 
+function drag(
+  el: Element,
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+) {
+  fireEvent.pointerDown(el, { clientX: fromX, clientY: fromY, pointerId: 2 });
+  fireEvent.pointerMove(el, { clientX: toX, clientY: toY, pointerId: 2 });
+  fireEvent.pointerUp(el, { clientX: toX, clientY: toY, pointerId: 2 });
+}
+
 describe("Paginator 三段点按", () => {
   beforeEach(() => {
     mockLayout();
@@ -60,7 +72,10 @@ describe("Paginator 三段点按", () => {
     );
     await waitFor(() => expect(screen.getByText("1 / 2")).toBeInTheDocument());
     tap(screen.getByTestId("paginate-root"), 30);
-    expect(onRequestChapter).toHaveBeenCalledWith("prev", "last");
+    expect(document.querySelectorAll(".paginate-layer")).toHaveLength(2);
+    await waitFor(() =>
+      expect(onRequestChapter).toHaveBeenCalledWith("prev", "last"),
+    );
   });
 
   it("点中间 1/3 触发 onToggleMenu", async () => {
@@ -75,7 +90,10 @@ describe("Paginator 三段点按", () => {
     const { onRequestChapter } = setup({ page: 1 });
     await waitFor(() => screen.getByText("2 / 2"));
     tap(screen.getByTestId("paginate-root"), 270);
-    expect(onRequestChapter).toHaveBeenCalledWith("next", "first");
+    expect(document.querySelectorAll(".paginate-layer")).toHaveLength(2);
+    await waitFor(() =>
+      expect(onRequestChapter).toHaveBeenCalledWith("next", "first"),
+    );
   });
 
   it("中间页点右侧 1/3 直接翻下一页（动画完成后提交页码）", async () => {
@@ -93,5 +111,28 @@ describe("Paginator 三段点按", () => {
     await waitFor(() => expect(screen.getByText("1 / 2")).toBeInTheDocument());
     const ind = screen.getByText("1 / 2");
     expect(ind.className).toContain("pointer-events-none");
+  });
+
+  it("拖动经过中央区域不会切换工具栏", async () => {
+    const { onToggleMenu } = setup();
+    await waitFor(() => screen.getByText("1 / 2"));
+    drag(screen.getByTestId("paginate-root"), 220, 50, 120, 50);
+    expect(onToggleMenu).not.toHaveBeenCalled();
+  });
+
+  it("横向动画忽略纵向误触", async () => {
+    const { onToggleMenu, onPageChange } = setup({ flipStyle: "slide" });
+    await waitFor(() => screen.getByText("1 / 2"));
+    drag(screen.getByTestId("paginate-root"), 150, 20, 154, 80);
+    expect(onToggleMenu).not.toHaveBeenCalled();
+    expect(onPageChange).not.toHaveBeenCalledWith(1, 2);
+  });
+
+  it("none 模式立即提交页码，不创建动画双层", async () => {
+    const { onPageChange } = setup({ flipStyle: "none" });
+    await waitFor(() => screen.getByText("1 / 2"));
+    tap(screen.getByTestId("paginate-root"), 270);
+    expect(onPageChange).toHaveBeenCalledWith(1, 2);
+    expect(document.querySelectorAll(".paginate-layer")).toHaveLength(1);
   });
 });

@@ -66,8 +66,8 @@ export function ReadingTab({ settings, onUpdate }: ReadingTabProps) {
 
       <Slider
         label="段间距"
-        min={0.5}
-        max={2}
+        min={0}
+        max={1.5}
         step={0.1}
         value={settings.paragraphSpacing}
         onChange={(v) => onUpdate({ paragraphSpacing: v })}

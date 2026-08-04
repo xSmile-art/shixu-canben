@@ -11,7 +11,7 @@ export interface ReadingSettings {
   fontSize: number; // 14-24 px
   lineHeight: number; // 1.5-2.5
   letterSpacing: number; // 0-4 px
-  paragraphSpacing: number; // 0.5-2 em
+  paragraphSpacing: number; // 0-1.5 em
   paragraphIndent: boolean;
   contentWidth: number; // 600-900 px
   pageMode: PageMode;
@@ -24,7 +24,7 @@ export const DEFAULT_SETTINGS: ReadingSettings = {
   fontSize: 18,
   lineHeight: 1.9,
   letterSpacing: 0,
-  paragraphSpacing: 1,
+  paragraphSpacing: 0.5,
   paragraphIndent: true,
   contentWidth: 720,
   pageMode: "scroll",

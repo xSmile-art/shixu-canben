@@ -85,6 +85,9 @@ select {
   letter-spacing: var(--reader-letter-spacing);
 }
 .chapter-body p {
+  /* typography 插件默认还会添加 margin-top；与自定义 margin-bottom
+     叠加后段间距近似翻倍。段间距统一只由设置变量控制。 */
+  margin-top: 0;
   margin-bottom: var(--reader-paragraph-spacing);
   text-indent: var(--reader-paragraph-indent);
   /* 分页模式下允许段落跨页拆分，避免短页留白 */
@@ -117,6 +120,29 @@ select {
   will-change: transform;
   background: var(--color-bg);
 }
+
+/* 移动页必须有明确的纸张边界，否则同色背景下看不出覆盖和平移分界。 */
+[data-flip-style="cover"][data-flip-dir="next"]
+  .paginate-layer-front,
+[data-flip-style="slide"][data-flip-dir="next"]
+  .paginate-layer-front {
+  border-left: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+  box-shadow: -14px 0 24px rgba(0, 0, 0, 0.16);
+}
+[data-flip-style="cover"][data-flip-dir="prev"]
+  .paginate-layer-front,
+[data-flip-style="slide"][data-flip-dir="prev"]
+  .paginate-layer-front {
+  border-right: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+  box-shadow: 14px 0 24px rgba(0, 0, 0, 0.16);
+}
+[data-flip-style="slide"] .paginate-layer-back {
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+}
+[data-flip-style="vertical"] .paginate-layer-front {
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+  box-shadow: 0 -12px 22px rgba(0, 0, 0, 0.14);
+}
 .paginate-layer-front {
   z-index: 2;
 }
@@ -125,7 +151,10 @@ select {
 }
 .paginate-spine {
   position: absolute;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: var(--paginate-spine-x, 0px);
+  width: 28px;
   z-index: 3;
   pointer-events: none;
   background: linear-gradient(
