@@ -55,7 +55,7 @@ Satisfaction = Build-up of tension + Expectation priming + Twist landing + Bysta
 
 # Chapter X: Chapter Title
 
-(Chapter body content, 2,000–2,500 characters, formatted per standards)
+(Chapter body content, 2,500–5,000 characters recommended, formatted per standards)
 
 ## Chapter Validation Checklist
 
