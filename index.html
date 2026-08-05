@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>时序残本 · 在线阅读</title>
+    <script>
+      (() => {
+        try {
+          const theme = JSON.parse(localStorage.getItem("sxcb-theme") || "null");
+          const colors = theme && theme.colors;
+          if (!colors) return;
+          const root = document.documentElement;
+          for (const key of ["bg", "fg", "accent", "muted", "border", "highlight"]) {
+            if (typeof colors[key] === "string") root.style.setProperty(`--color-${key}`, colors[key]);
+          }
+          const hex = /^#([0-9a-f]{6})$/i.exec(colors.bg || "")?.[1];
+          if (hex) {
+            const rgb = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
+            root.style.colorScheme = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000 < 128 ? "dark" : "light";
+          }
+          document.querySelector('meta[name="theme-color"]')?.setAttribute("content", colors.bg);
+          root.style.background = colors.bg;
+        } catch {}
+      })();
+    </script>
+    <script type="module" crossorigin src="/shixu-canben/assets/index-3H3hQtZv.js"></script>
+    <link rel="stylesheet" crossorigin href="/shixu-canben/assets/index-9vtpe0Ub.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
