@@ -27,7 +27,7 @@
 When the user does not specify otherwise, default to the following (the user can override these at any time by specifying a different platform, gender channel, or pacing):
 
 - Target platform: Qidian-style male-oriented (default; user may instead target Qidian / Tomato / Jinjiang / Falu / others)
-- Chapter length: 2,000–2,500 characters per chapter
+- Chapter length: 2,500–5,000 characters per chapter（下限保质量底线，上限为建议值，悬疑解密/智斗流可按叙事需要适当放宽；好内容自然有人读完，不需用截断制造"完读率"假象）
 - Narrative perspective: Third-person limited (follow the protagonist)
 - Pacing standard: One minor satisfaction beat every 3 chapters, one medium beat every 10 chapters, one major beat per volume
 
