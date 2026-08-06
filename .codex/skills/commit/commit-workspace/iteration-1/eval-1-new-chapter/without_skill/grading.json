@@ -1,0 +1,11 @@
+{
+  "expectations": [
+    {"text": "主题行以 feat(webnovel) 开头", "passed": false, "evidence": "feat: 第025章-暗流 完成 + ... (缺少 scope)"},
+    {"text": "主题行不超过50字符", "passed": true, "evidence": "约26个字符"},
+    {"text": "正文包含变更摘要", "passed": false, "evidence": "没有正文，只有单行主题"},
+    {"text": "正文包含变更文件列表", "passed": false, "evidence": "没有正文，缺少文件列表"},
+    {"text": "主题行为中文", "passed": true, "evidence": "中文主题行"}
+  ],
+  "pass_count": 2,
+  "total_count": 5
+}

@@ -1,0 +1,11 @@
+{
+  "expectations": [
+    {"text": "主题行以 feat(webnovel) 开头", "passed": true, "evidence": "feat(webnovel): 新增第025章-暗流"},
+    {"text": "主题行不超过50字符", "passed": true, "evidence": "主题行9个中文字符"},
+    {"text": "正文包含变更摘要", "passed": true, "evidence": "完成第025章\"暗流\"创作（约2500字），同步更新记忆台账和大纲。"},
+    {"text": "正文包含变更文件列表", "passed": true, "evidence": "列出了3个变更文件及其说明"},
+    {"text": "主题行为中文", "passed": true, "evidence": "新增第025章-暗流"}
+  ],
+  "pass_count": 5,
+  "total_count": 5
+}

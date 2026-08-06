@@ -1,0 +1,7 @@
+refactor: 重构 reader 分页逻辑，Paginator 由 class 组件改为函数组件，提取 usePagination 自定义 hook
+
+变更文件：
+- src/components/Paginator.tsx：class 组件重构为函数组件，使用 useMemo 优化分页计算
+- src/hooks/usePagination.ts：新增自定义 hook，提取分页逻辑以提升复用性和可测试性
+
+原因：原 Paginator 为 class 组件，生命周期逻辑分散且难以复用；改为函数组件并使用 useMemo 可减少不必要的重渲染，将分页核心逻辑抽离至 usePagination hook 便于后续维护和复用。

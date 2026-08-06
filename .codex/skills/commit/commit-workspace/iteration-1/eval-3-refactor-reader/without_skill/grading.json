@@ -1,0 +1,11 @@
+{
+  "expectations": [
+    {"text": "主题行以 refactor(reader) 开头", "passed": false, "evidence": "refactor: 重构 reader... (缺少 scope 括号格式)"},
+    {"text": "主题行不超过50字符", "passed": false, "evidence": "主题行约60字符，将详细信息挤在了主题行"},
+    {"text": "正文包含变更摘要", "passed": true, "evidence": "包含了原因说明"},
+    {"text": "正文包含变更文件列表", "passed": true, "evidence": "列出了2个变更文件"},
+    {"text": "主题行提到分页或组件重构", "passed": true, "evidence": "重构 reader 分页逻辑"}
+  ],
+  "pass_count": 3,
+  "total_count": 5
+}

@@ -1,0 +1,11 @@
+{
+  "expectations": [
+    {"text": "主题行以 refactor(reader) 开头", "passed": true, "evidence": "refactor(reader): 分页组件函数化重构并提取独立hook"},
+    {"text": "主题行不超过50字符", "passed": true, "evidence": "16个中文字符"},
+    {"text": "正文包含变更摘要", "passed": true, "evidence": "详细说明了从 class 到函数组件的重构及 useMemo 优化"},
+    {"text": "正文包含变更文件列表", "passed": true, "evidence": "列出了2个变更文件及说明"},
+    {"text": "主题行提到分页或组件重构", "passed": true, "evidence": "分页组件函数化重构"}
+  ],
+  "pass_count": 5,
+  "total_count": 5
+}

@@ -1,0 +1,40 @@
+{
+  "skill_name": "commit",
+  "iteration": 1,
+  "configurations": {
+    "with_skill": {
+      "pass_rate": "100% (15/15)",
+      "time": "101.0s ± 15.7s",
+      "tokens": "29524 ± 522"
+    },
+    "without_skill": {
+      "pass_rate": "46.7% (7/15)",
+      "time": "104.5s ± 0.7s",
+      "tokens": "30849 ± 4321"
+    }
+  },
+  "evals": [
+    {
+      "eval_name": "new-chapter",
+      "description": "新增章节 + 台账 + 大纲同步",
+      "with_skill": {"pass_rate": "5/5", "time": "112.3s", "tokens": 29072},
+      "without_skill": {"pass_rate": "2/5", "time": "105.0s", "tokens": 35881},
+      "key_diff": "without_skill 缺少 scope 和正文（单行提交），with_skill 格式完整"
+    },
+    {
+      "eval_name": "fix-content",
+      "description": "禁用词替换 + 环境描写补充",
+      "with_skill": {"pass_rate": "5/5", "time": "109.4s", "tokens": 29443},
+      "without_skill": {"pass_rate": "2/5", "time": "103.9s", "tokens": 28423},
+      "key_diff": "without_skill 缺少 scope 和正文，with_skill 提供详细变更说明"
+    },
+    {
+      "eval_name": "refactor-reader",
+      "description": "阅读器组件重构",
+      "with_skill": {"pass_rate": "5/5", "time": "81.2s", "tokens": 30056},
+      "without_skill": {"pass_rate": "3/5", "time": "104.6s", "tokens": 28242},
+      "key_diff": "without_skill 主题行过长、缺少 scope 括号格式，with_skill 简洁且规范"
+    }
+  ],
+  "summary": "with_skill 在所有测试用例上均为满分（15/15），without_skill 仅 46.7%。核心差距在于：1) scope 使用一致性 2) 正文结构化（摘要+文件列表）3) 主题行长度控制。"
+}

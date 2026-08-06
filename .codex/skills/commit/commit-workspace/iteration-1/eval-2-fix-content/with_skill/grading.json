@@ -1,0 +1,11 @@
+{
+  "expectations": [
+    {"text": "主题行以 fix(webnovel) 开头", "passed": true, "evidence": "fix(webnovel): 清理第024章禁用词及补充环境描写"},
+    {"text": "主题行不超过50字符", "passed": true, "evidence": "15个中文字符"},
+    {"text": "正文包含变更摘要", "passed": true, "evidence": "变更摘要段详细说明了替换内容和环境描写"},
+    {"text": "正文包含变更文件列表", "passed": true, "evidence": "列出了2个变更文件及详细说明"},
+    {"text": "主题行提到禁用词或内容修复", "passed": true, "evidence": "清理第024章禁用词"}
+  ],
+  "pass_count": 5,
+  "total_count": 5
+}

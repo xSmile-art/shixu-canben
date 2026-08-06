@@ -1,0 +1,11 @@
+{
+  "expectations": [
+    {"text": "主题行以 fix(webnovel) 开头", "passed": false, "evidence": "fix: 禁用词清理+... (缺少 scope)"},
+    {"text": "主题行不超过50字符", "passed": true, "evidence": "约25个字符"},
+    {"text": "正文包含变更摘要", "passed": false, "evidence": "没有正文，只有单行主题"},
+    {"text": "正文包含变更文件列表", "passed": false, "evidence": "没有正文，缺少文件列表"},
+    {"text": "主题行提到禁用词或内容修复", "passed": true, "evidence": "禁用词清理"}
+  ],
+  "pass_count": 2,
+  "total_count": 5
+}

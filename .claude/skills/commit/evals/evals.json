@@ -1,0 +1,23 @@
+{
+  "skill_name": "commit",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "你需要在当前 git 仓库中提交代码。暂存区有以下变更：\n\n1. 新增文件 `正文/第025章-暗流.md`（约2500字的新章节）\n2. 修改 `00-记忆台账.md`（v2.7→v2.8，新增F109、F110两条伏笔记录，更新沈砚、姜十七人物状态）\n3. 修改 `04-大纲.md`（标记第025章为已完成）\n\n请生成一条规范的 commit message 并提交。",
+      "expected_output": "主题行格式为 feat(webnovel): <简洁描述>，正文包含变更摘要+原因+变更文件列表",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "你需要在当前 git 仓库中提交代码。暂存区有以下变更：\n\n1. 修改 `正文/第024章-推案.md`（替换了3处「太阳穴跳了一下」变体，补充堤岸环境描写约300字）\n2. 修改 `00-记忆台账.md`（更新禁用词统计清零）\n\n请生成一条规范的 commit message 并提交。",
+      "expected_output": "主题行格式为 fix(webnovel): <简洁描述>，正文包含具体修复内容和变更文件列表",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "你需要在当前 git 仓库中提交代码。暂存区有以下变更：\n\n1. 修改 `reader/src/components/Paginator.tsx`（重构分页逻辑：将 class 组件改为函数组件，使用 useMemo 优化分页计算）\n2. 修改 `reader/src/hooks/usePagination.ts`（新增自定义 hook 提取分页逻辑）\n\n请生成一条规范的 commit message 并提交。",
+      "expected_output": "主题行格式为 refactor(reader): <简洁描述>，正文包含重构说明和变更文件列表",
+      "files": []
+    }
+  ]
+}
